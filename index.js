@@ -251,4 +251,8 @@ async function start() {
     }
 }
 
+console.log('Token exists:', !!config.token);
+console.log('ClientId exists:', !!config.clientId);
+console.log('GuildId exists:', !!config.guildId);
+
 start();
