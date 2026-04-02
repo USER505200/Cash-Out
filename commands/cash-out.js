@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('discord.js');
-const config = require('../config.json');
+const config = require('../config');
 const { getRate, saveLog, getWorkerByUserId, updateUserLimit, getRemainingTime, isUserLimited } = require('../utils/database');
 const { generateOrderId } = require('../utils/helpers');
 
