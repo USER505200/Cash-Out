@@ -1,7 +1,38 @@
 const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const config = require('./config'); // تغيير من config.json إلى config
+
+// قراءة المتغيرات مباشرة من process.env
+const config = {
+    token: process.env.BOT_TOKEN,
+    clientId: process.env.CLIENT_ID,
+    guildId: process.env.GUILD_ID,
+    roles: {
+        owner: '1487214820276043967',
+        worker: '1487299337041215508'
+    },
+    channels: {
+        vcashRateChannel: '1488199657426386954',
+        cryptoRateChannel: '1488200735467241513',
+        approveChannel: '1487996852518256650',
+        approveLogs: '1487996999876874370'
+    },
+    maxAmount: 2000
+};
+
+console.log('=== ENVIRONMENT VARIABLES CHECK ===');
+console.log('BOT_TOKEN:', process.env.BOT_TOKEN ? '✅ EXISTS' : '❌ MISSING');
+console.log('CLIENT_ID:', process.env.CLIENT_ID ? '✅ EXISTS' : '❌ MISSING');
+console.log('GUILD_ID:', process.env.GUILD_ID ? '✅ EXISTS' : '❌ MISSING');
+console.log('=====================================');
+
+// لو مش موجودين، قف
+if (!config.token || !config.clientId || !config.guildId) {
+    console.error('❌ Missing required environment variables!');
+    console.error('Please set BOT_TOKEN, CLIENT_ID, and GUILD_ID in Railway variables');
+    process.exit(1);
+}
+
 const { initDatabase, deleteHistory, resetUserLimit, getUserLimit } = require('./utils/database');
 
 const client = new Client({ 
@@ -21,7 +52,6 @@ async function start() {
         await initDatabase();
         console.log('✅ Database ready');
 
-        // Slash commands
         const commands = [];
         const commandsPath = path.join(__dirname, 'commands');
         
@@ -45,7 +75,6 @@ async function start() {
         client.once('ready', async () => {
             console.log(`✅ Logged in as ${client.user.tag}`);
             
-            // تنظيف الـ intervals القديمة
             if (client.limitIntervals) {
                 for (const [userId, interval] of client.limitIntervals) {
                     clearInterval(interval);
@@ -60,11 +89,10 @@ async function start() {
                 );
                 console.log('✅ Slash commands registered');
             } catch (error) {
-                console.error(error);
+                console.error('Error registering commands:', error);
             }
         });
 
-        // Handle Slash Commands
         client.on('interactionCreate', async interaction => {
             if (interaction.isChatInputCommand()) {
                 try {
@@ -86,7 +114,6 @@ async function start() {
             }
         });
 
-        // Handle Prefix Commands
         client.on('messageCreate', async message => {
             if (message.author.bot) return;
             if (!message.content.startsWith(PREFIX)) return;
@@ -94,7 +121,6 @@ async function start() {
             const args = message.content.slice(PREFIX.length).trim().split(/ +/);
             const commandName = args.shift().toLowerCase();
 
-            // ==================== !helpout ====================
             if (commandName === 'helpout') {
                 const helpEmbed = new EmbedBuilder()
                     .setColor(0x00bfff)
@@ -114,7 +140,6 @@ async function start() {
                 return message.reply({ embeds: [helpEmbed] });
             }
 
-            // ==================== !clearchat ====================
             if (commandName === 'clearchat') {
                 if (!message.member.roles.cache.has(config.roles.owner)) {
                     return message.reply('❌ This command is for Owner only');
@@ -165,7 +190,6 @@ async function start() {
                 }
             }
 
-            // ==================== !deletehistory ====================
             if (commandName === 'deletehistory') {
                 if (!message.member.roles.cache.has(config.roles.owner)) {
                     return message.reply('❌ This command is for Owner only');
@@ -191,7 +215,6 @@ async function start() {
                 }
             }
 
-            // ==================== !resetlimit ====================
             if (commandName === 'resetlimit') {
                 const allowedResetRoles = [
                     '1487214820276043967',
@@ -250,16 +273,5 @@ async function start() {
         console.error('Error starting bot:', error);
     }
 }
-
-const config = require('./config');
-
-console.log('=== ENVIRONMENT VARIABLES CHECK ===');
-console.log('process.env.token:', process.env.token ? '✅ EXISTS' : '❌ MISSING');
-console.log('process.env.clientId:', process.env.clientId ? '✅ EXISTS' : '❌ MISSING');
-console.log('process.env.guildId:', process.env.guildId ? '✅ EXISTS' : '❌ MISSING');
-console.log('config.token:', config.token ? '✅ EXISTS' : '❌ MISSING');
-console.log('config.clientId:', config.clientId ? '✅ EXISTS' : '❌ MISSING');
-console.log('config.guildId:', config.guildId ? '✅ EXISTS' : '❌ MISSING');
-console.log('=====================================');
 
 start();

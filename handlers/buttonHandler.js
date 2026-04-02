@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
-const config = require('../config');
+const config = require('../config.json');
 const { updateLogStatus, getWorkerByUserId, activateLimitAfterApproval } = require('../utils/database');
 const { sendPage } = require('../commands/view-cashouts');
 const { sendHistoryPage } = require('../commands/history-cash-out');

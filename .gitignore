@@ -1,6 +1,29 @@
+echo "# Dependencies
 node_modules/
+
+# Database files
 database.db
 workers.db
+
+# Config files with secrets
+config.json
+config.js
 .env
-.DS_Store
+
+# Logs
 *.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Railway
+.railway/
+" > .gitignore
