@@ -2,9 +2,9 @@ const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } = require('disco
 const fs = require('fs');
 const path = require('path');
 
-// قراءة المتغيرات مباشرة من process.env
+// قراءة المتغيرات من Environment Variables
 const config = {
-    token: process.env.BOT_TOKEN,
+    token: process.env.DISCORD_TOKEN || process.env.BOT_TOKEN || process.env.TOKEN,
     clientId: process.env.CLIENT_ID,
     guildId: process.env.GUILD_ID,
     roles: {
@@ -21,15 +21,17 @@ const config = {
 };
 
 console.log('=== ENVIRONMENT VARIABLES CHECK ===');
-console.log('BOT_TOKEN:', process.env.BOT_TOKEN ? '✅ EXISTS' : '❌ MISSING');
+console.log('DISCORD_TOKEN:', process.env.DISCORD_TOKEN ? '✅ EXISTS' : '❌ MISSING');
 console.log('CLIENT_ID:', process.env.CLIENT_ID ? '✅ EXISTS' : '❌ MISSING');
 console.log('GUILD_ID:', process.env.GUILD_ID ? '✅ EXISTS' : '❌ MISSING');
+console.log('config.token:', config.token ? '✅ EXISTS' : '❌ MISSING');
+console.log('config.clientId:', config.clientId ? '✅ EXISTS' : '❌ MISSING');
+console.log('config.guildId:', config.guildId ? '✅ EXISTS' : '❌ MISSING');
 console.log('=====================================');
 
-// لو مش موجودين، قف
 if (!config.token || !config.clientId || !config.guildId) {
-    console.error('❌ Missing required environment variables!');
-    console.error('Please set BOT_TOKEN, CLIENT_ID, and GUILD_ID in Railway variables');
+    console.error('❌ Missing required configuration!');
+    console.error('Need: DISCORD_TOKEN, CLIENT_ID, GUILD_ID');
     process.exit(1);
 }
 
