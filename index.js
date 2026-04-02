@@ -45,13 +45,13 @@ if (!config.token || !config.clientId || !config.guildId) {
 
 const { initDatabase, deleteHistory, resetUserLimit, getUserLimit } = require('./utils/database');
 
+// Reduced intents to avoid permission issues
 const client = new Client({ 
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMessages
+        GatewayIntentBits.DirectMessages
     ] 
 });
 
@@ -69,6 +69,9 @@ async function start() {
         if (fs.existsSync(commandsPath)) {
             const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
             for (const file of commandFiles) {
+                // Skip clearChat.js if it exists
+                if (file === 'clearChat.js') continue;
+                
                 try {
                     const command = require(`./commands/${file}`);
                     if (command.data) {
@@ -96,19 +99,21 @@ async function start() {
 
             // Register slash commands
             try {
-                // First, delete all existing guild commands
+                // Delete all existing guild commands
                 await rest.put(
                     Routes.applicationGuildCommands(config.clientId, config.guildId),
                     { body: [] }
                 );
                 console.log('✅ Cleared old guild commands');
                 
-                // Then register new commands
+                // Register new commands
                 await rest.put(
                     Routes.applicationGuildCommands(config.clientId, config.guildId),
                     { body: commands }
                 );
                 console.log(`✅ Registered ${commands.length} slash commands`);
+                console.log('📋 Available commands:');
+                commands.forEach(cmd => console.log(`   /${cmd.name}`));
             } catch (error) {
                 console.error('Error registering commands:', error);
             }
