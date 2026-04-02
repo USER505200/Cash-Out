@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const config = require('../config.json');
+const config = require('../config');
 const { getAllWorkers } = require('../utils/database');
 
 const itemsPerPage = 5;

@@ -1,30 +1,7 @@
 const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-
-// قراءة الكونفيج - لو في Railway استخدم env variables
-let config;
-try {
-    config = require('./config.json');
-} catch (e) {
-    config = {
-        token: process.env.token,
-        clientId: process.env.clientId,
-        guildId: process.env.guildId,
-        roles: {
-            owner: '1487214820276043967',
-            worker: '1487299337041215508'
-        },
-        channels: {
-            vcashRateChannel: '1488199657426386954',
-            cryptoRateChannel: '1488200735467241513',
-            approveChannel: '1487996852518256650',
-            approveLogs: '1487996999876874370'
-        },
-        maxAmount: 2000
-    };
-}
-
+const config = require('./config'); // تغيير من config.json إلى config
 const { initDatabase, deleteHistory, resetUserLimit, getUserLimit } = require('./utils/database');
 
 const client = new Client({ 
@@ -216,11 +193,10 @@ async function start() {
 
             // ==================== !resetlimit ====================
             if (commandName === 'resetlimit') {
-                // الرتب المسموح لها
                 const allowedResetRoles = [
-                    '1487214820276043967', // Owner
-                    '1487298785913606317', // Admin
-                    '1487299732215697469'  // Support
+                    '1487214820276043967',
+                    '1487298785913606317',
+                    '1487299732215697469'
                 ];
                 
                 const hasAllowedRole = allowedResetRoles.some(roleId => message.member.roles.cache.has(roleId));
@@ -233,7 +209,6 @@ async function start() {
                     return message.reply('❌ Please mention a user! Usage: `!resetlimit @user`');
                 }
 
-                // جلب معلومات الـ Limit قبل المسح
                 const limitInfo = await getUserLimit(targetUser.id);
                 
                 if (!limitInfo.isLimited && (limitInfo.totalAmount === 0 || limitInfo.totalAmount < 2000)) {
@@ -260,7 +235,6 @@ async function start() {
                     
                     await message.reply({ embeds: [embed] });
                     
-                    // إيقاف الـ interval إذا كان موجود
                     if (client.limitIntervals && client.limitIntervals.has(targetUser.id)) {
                         clearInterval(client.limitIntervals.get(targetUser.id));
                         client.limitIntervals.delete(targetUser.id);

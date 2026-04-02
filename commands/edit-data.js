@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
-const config = require('../config.json');
+const config = require('../config');
 const { getWorkerByUserId, updateWorker } = require('../utils/database');
 
 module.exports = {
