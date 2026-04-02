@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const config = require('../config.js');
+const config = require('../config.json');
 const { setRate } = require('../utils/database');
 
 // الرتب المسموح لها بتغيير السعر

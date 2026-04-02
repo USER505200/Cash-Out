@@ -1,5 +1,6 @@
 node_modules/
+database.db
+workers.db
 .env
-*.sqlite
-*.db
 .DS_Store
+*.log

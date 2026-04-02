@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const config = require('../config.js');
+const config = require('../config.json');
 const { getAllCashouts, getCashoutsStats, getCashoutsByUser, getCashoutsByStatus, getCashoutsStatsByUser, getCashoutsByUserAndStatus } = require('../utils/database');
 
 const itemsPerPage = 5;

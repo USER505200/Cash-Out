@@ -2,17 +2,16 @@
   "name": "discord-cash-bot",
   "version": "1.0.0",
   "main": "index.js",
-  "engines": {
-    "node": ">=22.0.0",
-    "npm": ">=10.0.0"
-  },
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "engines": {
+    "node": "18.x"
   },
   "dependencies": {
     "discord.js": "^14.14.1",
     "sqlite3": "^5.1.7",
-    "sqlite": "^5.1.1",
-    "dotenv": "^16.4.5"
+    "sqlite": "^5.1.1"
   }
 }

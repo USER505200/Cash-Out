@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, EmbedBuilder } = require('discord.js');
-const config = require('../config.js');
+const config = require('../config.json');
 const { addWorker, getWorkerByUserId } = require('../utils/database');
 
 // الصور

@@ -1,21 +1,31 @@
-require('dotenv').config();
-
 const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const config = require('./config.js');
+
+// قراءة الكونفيج - لو في Railway استخدم env variables
+let config;
+try {
+    config = require('./config.json');
+} catch (e) {
+    config = {
+        token: process.env.token,
+        clientId: process.env.clientId,
+        guildId: process.env.guildId,
+        roles: {
+            owner: '1487214820276043967',
+            worker: '1487299337041215508'
+        },
+        channels: {
+            vcashRateChannel: '1488199657426386954',
+            cryptoRateChannel: '1488200735467241513',
+            approveChannel: '1487996852518256650',
+            approveLogs: '1487996999876874370'
+        },
+        maxAmount: 2000
+    };
+}
+
 const { initDatabase, deleteHistory, resetUserLimit, getUserLimit } = require('./utils/database');
-
-// Validate required environment variables
-if (!process.env.DISCORD_TOKEN) {
-    console.error('❌ ERROR: DISCORD_TOKEN environment variable is not set!');
-    process.exit(1);
-}
-
-if (!config.token) {
-    console.error('❌ ERROR: Bot token is undefined!');
-    process.exit(1);
-}
 
 const client = new Client({ 
     intents: [
@@ -53,16 +63,7 @@ async function start() {
             }
         }
 
-        // Validate and sanitize token
-        const token = config.token ? String(config.token).trim() : null;
-        if (!token || token === 'undefined' || token === 'null' || token.length < 50) {
-            console.error('❌ ERROR: Invalid or missing DISCORD_TOKEN');
-            console.error(`Token status: ${token ? `${token.length} chars` : 'null/undefined'}`);
-            process.exit(1);
-        }
-
-        console.log(`✅ Token validated (${token.length} characters)`);
-        const rest = new REST({ version: '10' }).setToken(token);
+        const rest = new REST({ version: '10' }).setToken(config.token);
 
         client.once('ready', async () => {
             console.log(`✅ Logged in as ${client.user.tag}`);
@@ -76,7 +77,6 @@ async function start() {
             }
 
             try {
-                console.log(`Registering ${commands.length} commands...`);
                 await rest.put(
                     Routes.applicationGuildCommands(config.clientId, config.guildId),
                     { body: commands }
@@ -271,20 +271,9 @@ async function start() {
             }
         });
 
-        // Add error handlers for the client
-        client.on('error', error => {
-            console.error('❌ Client error:', error);
-        });
-
-        client.on('shardError', error => {
-            console.error('❌ Shard error:', error);
-        });
-
-        console.log('🔐 Attempting to login...');
-        await client.login(token);
+        client.login(config.token);
     } catch (error) {
-        console.error('❌ Error starting bot:', error);
-        process.exit(1);
+        console.error('Error starting bot:', error);
     }
 }
 

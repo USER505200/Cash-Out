@@ -42,15 +42,10 @@ async function initDatabase() {
 
         // إضافة عمود isLast إذا لم يكن موجود
         try {
-            const tableInfo = await db.all(`PRAGMA table_info(logs)`);
-            const hasIsLastColumn = tableInfo.some(col => col.name === 'isLast');
-            
-            if (!hasIsLastColumn) {
-                await db.exec(`ALTER TABLE logs ADD COLUMN isLast BOOLEAN DEFAULT 0`);
-                console.log('✅ Added isLast column to logs table');
-            }
+            await db.exec(`ALTER TABLE logs ADD COLUMN isLast BOOLEAN DEFAULT 0`);
+            console.log('✅ Added isLast column to logs table');
         } catch (err) {
-            console.log('⚠️ Could not add isLast column:', err.message);
+            console.log('isLast column already exists or error:', err.message);
         }
 
         // جدول بيانات الـ Workers
