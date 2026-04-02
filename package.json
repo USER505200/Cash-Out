@@ -2,6 +2,10 @@
   "name": "discord-cash-bot",
   "version": "1.0.0",
   "main": "index.js",
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
   "scripts": {
     "start": "node index.js"
   },
