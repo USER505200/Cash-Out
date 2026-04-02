@@ -45,14 +45,9 @@ if (!config.token || !config.clientId || !config.guildId) {
 
 const { initDatabase, deleteHistory, resetUserLimit, getUserLimit } = require('./utils/database');
 
-// Reduced intents to avoid permission issues
+// ONLY the most basic intents
 const client = new Client({ 
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
-        GatewayIntentBits.DirectMessages
-    ] 
+    intents: [GatewayIntentBits.Guilds] 
 });
 
 const PREFIX = '!';
@@ -69,7 +64,6 @@ async function start() {
         if (fs.existsSync(commandsPath)) {
             const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
             for (const file of commandFiles) {
-                // Skip clearChat.js if it exists
                 if (file === 'clearChat.js') continue;
                 
                 try {
@@ -89,7 +83,6 @@ async function start() {
         client.once('ready', async () => {
             console.log(`✅ Logged in as ${client.user.tag}`);
             
-            // Clean up intervals
             if (client.limitIntervals) {
                 for (const [userId, interval] of client.limitIntervals) {
                     clearInterval(interval);
@@ -97,29 +90,23 @@ async function start() {
                 client.limitIntervals.clear();
             }
 
-            // Register slash commands
             try {
-                // Delete all existing guild commands
                 await rest.put(
                     Routes.applicationGuildCommands(config.clientId, config.guildId),
                     { body: [] }
                 );
                 console.log('✅ Cleared old guild commands');
                 
-                // Register new commands
                 await rest.put(
                     Routes.applicationGuildCommands(config.clientId, config.guildId),
                     { body: commands }
                 );
                 console.log(`✅ Registered ${commands.length} slash commands`);
-                console.log('📋 Available commands:');
-                commands.forEach(cmd => console.log(`   /${cmd.name}`));
             } catch (error) {
                 console.error('Error registering commands:', error);
             }
         });
 
-        // Handle Slash Commands
         client.on('interactionCreate', async interaction => {
             if (interaction.isChatInputCommand()) {
                 try {
@@ -146,7 +133,6 @@ async function start() {
             }
         });
 
-        // Handle Prefix Commands
         client.on('messageCreate', async message => {
             if (message.author.bot) return;
             if (!message.content.startsWith(PREFIX)) return;
