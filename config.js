@@ -1,8 +1,8 @@
 // config.js
 module.exports = {
-    token: process.env.token,
-    clientId: process.env.clientId,
-    guildId: process.env.guildId,
+    token: process.env.token || process.env.TOKEN,
+    clientId: process.env.clientId || process.env.CLIENT_ID,
+    guildId: process.env.guildId || process.env.GUILD_ID,
     roles: {
         owner: '1487214820276043967',
         worker: '1487299337041215508'

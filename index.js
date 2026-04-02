@@ -251,8 +251,15 @@ async function start() {
     }
 }
 
-console.log('Token exists:', !!config.token);
-console.log('ClientId exists:', !!config.clientId);
-console.log('GuildId exists:', !!config.guildId);
+const config = require('./config');
+
+console.log('=== ENVIRONMENT VARIABLES CHECK ===');
+console.log('process.env.token:', process.env.token ? '✅ EXISTS' : '❌ MISSING');
+console.log('process.env.clientId:', process.env.clientId ? '✅ EXISTS' : '❌ MISSING');
+console.log('process.env.guildId:', process.env.guildId ? '✅ EXISTS' : '❌ MISSING');
+console.log('config.token:', config.token ? '✅ EXISTS' : '❌ MISSING');
+console.log('config.clientId:', config.clientId ? '✅ EXISTS' : '❌ MISSING');
+console.log('config.guildId:', config.guildId ? '✅ EXISTS' : '❌ MISSING');
+console.log('=====================================');
 
 start();
