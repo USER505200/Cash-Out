@@ -2,36 +2,44 @@ const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } = require('disco
 const fs = require('fs');
 const path = require('path');
 
-// قراءة المتغيرات من Environment Variables
-const config = {
-    token: process.env.DISCORD_TOKEN || process.env.BOT_TOKEN || process.env.TOKEN,
-    clientId: process.env.CLIENT_ID,
-    guildId: process.env.GUILD_ID,
-    roles: {
-        owner: '1487214820276043967',
-        worker: '1487299337041215508'
-    },
-    channels: {
-        vcashRateChannel: '1488199657426386954',
-        cryptoRateChannel: '1488200735467241513',
-        approveChannel: '1487996852518256650',
-        approveLogs: '1487996999876874370'
-    },
-    maxAmount: 2000
-};
+// قراءة الكونفيج
+let config;
 
-console.log('=== ENVIRONMENT VARIABLES CHECK ===');
-console.log('DISCORD_TOKEN:', process.env.DISCORD_TOKEN ? '✅ EXISTS' : '❌ MISSING');
-console.log('CLIENT_ID:', process.env.CLIENT_ID ? '✅ EXISTS' : '❌ MISSING');
-console.log('GUILD_ID:', process.env.GUILD_ID ? '✅ EXISTS' : '❌ MISSING');
-console.log('config.token:', config.token ? '✅ EXISTS' : '❌ MISSING');
-console.log('config.clientId:', config.clientId ? '✅ EXISTS' : '❌ MISSING');
-console.log('config.guildId:', config.guildId ? '✅ EXISTS' : '❌ MISSING');
-console.log('=====================================');
+if (process.env.CONFIG_JSON) {
+    try {
+        config = JSON.parse(process.env.CONFIG_JSON);
+        console.log('✅ Config loaded from CONFIG_JSON');
+    } catch (e) {
+        console.error('Failed to parse CONFIG_JSON:', e.message);
+        process.exit(1);
+    }
+} else {
+    config = {
+        token: process.env.DISCORD_TOKEN || process.env.BOT_TOKEN,
+        clientId: process.env.CLIENT_ID,
+        guildId: process.env.GUILD_ID,
+        roles: {
+            owner: '1487214820276043967',
+            worker: '1487299337041215508'
+        },
+        channels: {
+            vcashRateChannel: '1488199657426386954',
+            cryptoRateChannel: '1488200735467241513',
+            approveChannel: '1487996852518256650',
+            approveLogs: '1487996999876874370'
+        },
+        maxAmount: 2000
+    };
+}
+
+console.log('=== CONFIG CHECK ===');
+console.log('Token:', config.token ? '✅ EXISTS' : '❌ MISSING');
+console.log('ClientId:', config.clientId ? '✅ EXISTS' : '❌ MISSING');
+console.log('GuildId:', config.guildId ? '✅ EXISTS' : '❌ MISSING');
+console.log('====================');
 
 if (!config.token || !config.clientId || !config.guildId) {
     console.error('❌ Missing required configuration!');
-    console.error('Need: DISCORD_TOKEN, CLIENT_ID, GUILD_ID');
     process.exit(1);
 }
 
@@ -54,6 +62,7 @@ async function start() {
         await initDatabase();
         console.log('✅ Database ready');
 
+        // Load slash commands
         const commands = [];
         const commandsPath = path.join(__dirname, 'commands');
         
@@ -77,6 +86,7 @@ async function start() {
         client.once('ready', async () => {
             console.log(`✅ Logged in as ${client.user.tag}`);
             
+            // Clean up intervals
             if (client.limitIntervals) {
                 for (const [userId, interval] of client.limitIntervals) {
                     clearInterval(interval);
@@ -84,24 +94,39 @@ async function start() {
                 client.limitIntervals.clear();
             }
 
+            // Register slash commands
             try {
+                // First, delete all existing guild commands
+                await rest.put(
+                    Routes.applicationGuildCommands(config.clientId, config.guildId),
+                    { body: [] }
+                );
+                console.log('✅ Cleared old guild commands');
+                
+                // Then register new commands
                 await rest.put(
                     Routes.applicationGuildCommands(config.clientId, config.guildId),
                     { body: commands }
                 );
-                console.log('✅ Slash commands registered');
+                console.log(`✅ Registered ${commands.length} slash commands`);
             } catch (error) {
                 console.error('Error registering commands:', error);
             }
         });
 
+        // Handle Slash Commands
         client.on('interactionCreate', async interaction => {
             if (interaction.isChatInputCommand()) {
                 try {
-                    const command = require(`./commands/${interaction.commandName}.js`);
-                    await command.execute(interaction, client);
+                    const commandPath = path.join(__dirname, 'commands', `${interaction.commandName}.js`);
+                    if (fs.existsSync(commandPath)) {
+                        const command = require(commandPath);
+                        await command.execute(interaction, client);
+                    } else {
+                        await interaction.reply({ content: '❌ Command not found', flags: 64 });
+                    }
                 } catch (error) {
-                    console.error(error);
+                    console.error(`Error executing ${interaction.commandName}:`, error);
                     await interaction.reply({ content: '❌ Something went wrong', flags: 64 });
                 }
             }
@@ -116,6 +141,7 @@ async function start() {
             }
         });
 
+        // Handle Prefix Commands
         client.on('messageCreate', async message => {
             if (message.author.bot) return;
             if (!message.content.startsWith(PREFIX)) return;
