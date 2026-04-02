@@ -1,8 +1,21 @@
+require('dotenv').config();
+
 const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const config = require('./config.js');
 const { initDatabase, deleteHistory, resetUserLimit, getUserLimit } = require('./utils/database');
+
+// Validate required environment variables
+if (!process.env.DISCORD_TOKEN) {
+    console.error('❌ ERROR: DISCORD_TOKEN environment variable is not set!');
+    process.exit(1);
+}
+
+if (!config.token) {
+    console.error('❌ ERROR: Bot token is undefined!');
+    process.exit(1);
+}
 
 const client = new Client({ 
     intents: [
