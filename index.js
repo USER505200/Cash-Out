@@ -53,7 +53,16 @@ async function start() {
             }
         }
 
-        const rest = new REST({ version: '10' }).setToken(config.token);
+        // Validate and sanitize token
+        const token = config.token ? String(config.token).trim() : null;
+        if (!token || token === 'undefined' || token === 'null' || token.length < 50) {
+            console.error('❌ ERROR: Invalid or missing DISCORD_TOKEN');
+            console.error(`Token status: ${token ? `${token.length} chars` : 'null/undefined'}`);
+            process.exit(1);
+        }
+
+        console.log(`✅ Token validated (${token.length} characters)`);
+        const rest = new REST({ version: '10' }).setToken(token);
 
         client.once('ready', async () => {
             console.log(`✅ Logged in as ${client.user.tag}`);
@@ -67,6 +76,7 @@ async function start() {
             }
 
             try {
+                console.log(`Registering ${commands.length} commands...`);
                 await rest.put(
                     Routes.applicationGuildCommands(config.clientId, config.guildId),
                     { body: commands }
@@ -261,9 +271,20 @@ async function start() {
             }
         });
 
-        client.login(config.token);
+        // Add error handlers for the client
+        client.on('error', error => {
+            console.error('❌ Client error:', error);
+        });
+
+        client.on('shardError', error => {
+            console.error('❌ Shard error:', error);
+        });
+
+        console.log('🔐 Attempting to login...');
+        await client.login(token);
     } catch (error) {
-        console.error('Error starting bot:', error);
+        console.error('❌ Error starting bot:', error);
+        process.exit(1);
     }
 }
 

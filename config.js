@@ -1,7 +1,9 @@
 require('dotenv').config();
 
+const token = process.env.DISCORD_TOKEN ? String(process.env.DISCORD_TOKEN).trim() : null;
+
 module.exports = {
-  token: process.env.DISCORD_TOKEN,
+  token: token,
   clientId: process.env.CLIENT_ID || "1488464106154496020",
   guildId: process.env.GUILD_ID || "1487197600456249378",
   roles: {
