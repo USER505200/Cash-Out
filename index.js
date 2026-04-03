@@ -2,11 +2,11 @@ const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } = require('disco
 const fs = require('fs');
 const path = require('path');
 
-// Config
+// Config - استخدام متغيرات البيئة أولاً
 const config = {
-    token: process.env.DISCORD_TOKEN || process.env.BOT_TOKEN,
-    clientId: process.env.CLIENT_ID,
-    guildId: process.env.GUILD_ID,
+    token: process.env.DISCORD_TOKEN || process.env.BOT_TOKEN || '',
+    clientId: process.env.CLIENT_ID || '1489405495478325431',
+    guildId: process.env.GUILD_ID || '1487197600456249378',
     roles: {
         owner: '1487214820276043967',
         worker: '1487299337041215508'
@@ -20,7 +20,7 @@ const config = {
     maxAmount: 2000
 };
 
-console.log('📌 Using Token:', config.token ? config.token.slice(0, 20) + '...' : 'MISSING');
+console.log('📌 Using Token:', config.token ? config.token.slice(0, 25) + '...' : '❌ MISSING');
 console.log('📌 Client ID:', config.clientId);
 console.log('📌 Guild ID:', config.guildId);
 
@@ -38,11 +38,21 @@ const client = new Client({
 
 const PREFIX = '!';
 
-// Health check server for Railway
-const express = require('express');
-const app = express();
-app.get('/', (req, res) => res.send('OK'));
-app.listen(8080, () => console.log('✅ Healthcheck server running on port 8080'));
+// ==================== HTTP Server for Railway Healthcheck (بدون express) ====================
+const http = require('http');
+const server = http.createServer((req, res) => {
+    if (req.url === '/health' || req.url === '/') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok', timestamp: Date.now() }));
+    } else {
+        res.writeHead(404);
+        res.end();
+    }
+});
+const PORT = process.env.PORT || 8080;
+server.listen(PORT, () => {
+    console.log(`✅ Healthcheck server running on port ${PORT}`);
+});
 
 async function registerCommands() {
     try {
@@ -52,7 +62,6 @@ async function registerCommands() {
         if (fs.existsSync(commandsPath)) {
             const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
             for (const file of commandFiles) {
-                if (file === 'clearChat.js' || file === 'sync.js') continue;
                 try {
                     const command = require(`./commands/${file}`);
                     if (command.data) {
@@ -67,26 +76,28 @@ async function registerCommands() {
         
         const rest = new REST({ version: '10' }).setToken(config.token);
         
-        // Delete all existing commands
-        const existing = await rest.get(
-            Routes.applicationGuildCommands(config.clientId, config.guildId)
-        );
-        console.log(`📋 Found ${existing.length} existing commands`);
-        
-        for (const cmd of existing) {
-            await rest.delete(
-                Routes.applicationGuildCommand(config.clientId, config.guildId, cmd.id)
+        // حذف الأوامر القديمة
+        console.log('🔄 Clearing old commands...');
+        try {
+            const existing = await rest.get(
+                Routes.applicationGuildCommands(config.clientId, config.guildId)
             );
-            console.log(`🗑️ Deleted: ${cmd.name}`);
+            for (const cmd of existing) {
+                await rest.delete(
+                    Routes.applicationGuildCommand(config.clientId, config.guildId, cmd.id)
+                );
+                console.log(`🗑️ Deleted: ${cmd.name}`);
+            }
+        } catch (e) {
+            console.log('No existing commands or error:', e.message);
         }
         
-        // Register new commands
+        // تسجيل الأوامر الجديدة
         await rest.put(
             Routes.applicationGuildCommands(config.clientId, config.guildId),
             { body: commands }
         );
-        console.log(`✅ Registered ${commands.length} slash commands:`);
-        commands.forEach(cmd => console.log(`   /${cmd.name}`));
+        console.log(`✅ Registered ${commands.length} slash commands`);
     } catch (error) {
         console.error('Register error:', error);
     }
@@ -227,6 +238,10 @@ client.on('interactionCreate', async interaction => {
 // Start
 async function start() {
     try {
+        if (!config.token) {
+            console.error('❌ No token found! Set DISCORD_TOKEN environment variable');
+            process.exit(1);
+        }
         await initDatabase();
         console.log('✅ Database ready');
         await client.login(config.token);
