@@ -173,6 +173,9 @@ module.exports = {
 
         // ========== آخر عملية (total بالضبط 2000) ==========
         if (limitResult.isLast === true) {
+            // تعريف checkWalletMessage هنا
+            const checkWalletMessage = `\`\`\`diff\n- Check wallet\n\`\`\`\`!w ${interaction.user.id}\`\n\n\`\`\`diff\n- If You Sure\n\`\`\`\`/remove_earnings amount:${amount} user:${interaction.user.id}\``;
+            
             // استخدام limitedUntil من limitResult
             const targetDate = limitResult.limitedUntil;
             
@@ -296,8 +299,6 @@ module.exports = {
             const currentRate = method === 'v-cash' ? rate.vcash : rate.crypto;
             const total = amount * currentRate;
             const orderId = generateOrderId();
-
-            const checkWalletMessage = `\`\`\`diff\n- Check wallet\n\`\`\`\`!w ${interaction.user.id}\`\n\n\`\`\`diff\n- If You Sure\n\`\`\`\`/remove_earnings amount:${amount} user:${interaction.user.id}\``;
 
             const embed = new EmbedBuilder()
                 .setColor(0xffa500)
