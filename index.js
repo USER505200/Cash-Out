@@ -1,223 +1,256 @@
 const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-
-// Config
-const config = {
-    token: process.env.DISCORD_TOKEN || process.env.BOT_TOKEN,
-    clientId: process.env.CLIENT_ID,
-    guildId: process.env.GUILD_ID,
-    roles: {
-        owner: '1487214820276043967',
-        worker: '1487299337041215508'
-    },
-    channels: {
-        vcashRateChannel: '1488199657426386954',
-        cryptoRateChannel: '1488200735467241513',
-        approveChannel: '1487996852518256650',
-        approveLogs: '1487996999876874370'
-    },
-    maxAmount: 2000
-};
-
-console.log('🔧 CONFIG CHECK:');
-console.log('Token:', config.token ? '✅' : '❌');
-console.log('ClientId:', config.clientId ? '✅' : '❌');
-console.log('GuildId:', config.guildId ? '✅' : '❌');
-
+const config = require('./config.json');
 const { initDatabase, deleteHistory, resetUserLimit, getUserLimit } = require('./utils/database');
 
-// ✅ Intents - تأكد إنها مفعلة في Developer Portal
 const client = new Client({ 
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.DirectMessages
+        GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMessages
     ] 
 });
 
 const PREFIX = '!';
 
-// Slash commands registration
-async function registerCommands() {
+async function start() {
     try {
+        await initDatabase();
+        console.log('✅ Database ready');
+
+        // Slash commands
         const commands = [];
         const commandsPath = path.join(__dirname, 'commands');
         
         if (fs.existsSync(commandsPath)) {
             const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
             for (const file of commandFiles) {
-                if (file === 'clearChat.js') continue;
                 try {
                     const command = require(`./commands/${file}`);
                     if (command.data) {
                         commands.push(command.data.toJSON());
-                        console.log(`✅ Loaded: ${file}`);
+                        console.log(`✅ Loaded command: ${file}`);
                     }
                 } catch (err) {
-                    console.log(`⚠️ ${file}:`, err.message);
+                    console.log(`⚠️ Failed to load command ${file}:`, err.message);
                 }
             }
         }
-        
+
         const rest = new REST({ version: '10' }).setToken(config.token);
-        await rest.put(
-            Routes.applicationGuildCommands(config.clientId, config.guildId),
-            { body: commands }
-        );
-        console.log(`✅ Registered ${commands.length} slash commands`);
-    } catch (error) {
-        console.error('Register error:', error);
-    }
-}
 
-client.once('ready', async () => {
-    console.log(`✅ Logged in as ${client.user.tag}`);
-    console.log(`✅ Bot is ONLINE!`);
-    await registerCommands();
-});
-
-// Prefix commands
-client.on('messageCreate', async message => {
-    if (message.author.bot) return;
-    if (!message.content.startsWith(PREFIX)) return;
-
-    const args = message.content.slice(PREFIX.length).trim().split(/ +/);
-    const commandName = args.shift().toLowerCase();
-
-    // !helpout
-    if (commandName === 'helpout') {
-        const embed = new EmbedBuilder()
-            .setColor(0x00bfff)
-            .setTitle('📋 GRINDORA CASH-OUT BOT')
-            .setDescription('**Prefix Commands (!)**')
-            .addFields(
-                { name: '!helpout', value: 'Show this menu', inline: true },
-                { name: '!ping', value: 'Check bot latency', inline: true },
-                { name: '!clearchat @user', value: 'Clear DM (Owner)', inline: false },
-                { name: '!deletehistory @user/all', value: 'Delete history (Owner)', inline: false },
-                { name: '!resetlimit @user', value: 'Reset limit (Owner/Admin/Support)', inline: false }
-            )
-            .addFields(
-                { name: '📱 Slash Commands (/)', value: '`/cash-out` `/add-data` `/delete-data` `/edit-data` `/history-cash-out` `/list-workers` `/rate` `/view-cashouts`', inline: false }
-            )
-            .setFooter({ text: 'GRINDORA SERVICES' })
-            .setTimestamp();
-        
-        return message.reply({ embeds: [embed] });
-    }
-
-    // !ping
-    if (commandName === 'ping') {
-        return message.reply(`🏓 Pong! ${client.ws.ping}ms`);
-    }
-
-    // !clearchat
-    if (commandName === 'clearchat') {
-        if (!message.member.roles.cache.has(config.roles.owner)) {
-            return message.reply('❌ Owner only');
-        }
-        const target = message.mentions.users.first();
-        if (!target) return message.reply('❌ Mention a user');
-        
-        await message.reply(`🔄 Clearing DM with ${target.tag}...`);
-        try {
-            const dm = await target.createDM();
-            const msgs = await dm.messages.fetch({ limit: 100 });
-            const botMsgs = msgs.filter(m => m.author.id === client.user.id);
-            let count = 0;
-            for (const m of botMsgs.values()) {
-                await m.delete();
-                count++;
+        client.once('ready', async () => {
+            console.log(`✅ Logged in as ${client.user.tag}`);
+            
+            // تنظيف الـ intervals القديمة
+            if (client.limitIntervals) {
+                for (const [userId, interval] of client.limitIntervals) {
+                    clearInterval(interval);
+                }
+                client.limitIntervals.clear();
             }
-            await message.reply(`✅ Deleted ${count} messages`);
-        } catch (e) {
-            await message.reply(`❌ Error: ${e.message}`);
-        }
-    }
 
-    // !deletehistory
-    if (commandName === 'deletehistory') {
-        if (!message.member.roles.cache.has(config.roles.owner)) {
-            return message.reply('❌ Owner only');
-        }
-        const target = args[0];
-        if (!target) return message.reply('❌ @user or "all"');
-        
-        if (target === 'all') {
-            const res = await deleteHistory('all');
-            await message.reply(`✅ ${res.message}`);
-        } else {
-            const user = message.mentions.users.first();
-            if (!user) return message.reply('❌ Mention a user');
-            const res = await deleteHistory(user.id);
-            await message.reply(`✅ ${res.message}`);
-        }
-    }
+            try {
+                await rest.put(
+                    Routes.applicationGuildCommands(config.clientId, config.guildId),
+                    { body: commands }
+                );
+                console.log('✅ Slash commands registered');
+            } catch (error) {
+                console.error(error);
+            }
+        });
 
-    // !resetlimit
-    if (commandName === 'resetlimit') {
-        const allowed = [config.roles.owner, '1487298785913606317', '1487299732215697469'];
-        if (!allowed.some(r => message.member.roles.cache.has(r))) {
-            return message.reply('❌ Owner/Admin/Support only');
-        }
-        const user = message.mentions.users.first();
-        if (!user) return message.reply('❌ Mention a user');
-        
-        const info = await getUserLimit(user.id);
-        if (!info.isLimited && info.totalAmount < 2000) {
-            return message.reply(`✅ Not limited. Total: ${info.totalAmount || 0}/2000`);
-        }
-        
-        const res = await resetUserLimit(user.id);
-        if (res.success) {
-            const embed = new EmbedBuilder()
-                .setColor(0x00ff00)
-                .setTitle('✅ Limit Reset')
-                .setDescription(`Reset for ${user.tag}`)
-                .addFields(
-                    { name: 'Previous', value: `${info.totalAmount || 0}/2000`, inline: true },
-                    { name: 'By', value: message.author.tag, inline: true }
-                )
-                .setTimestamp();
-            await message.reply({ embeds: [embed] });
-        } else {
-            await message.reply(`❌ ${res.message}`);
-        }
-    }
-});
+        // Handle Slash Commands
+        client.on('interactionCreate', async interaction => {
+            if (interaction.isChatInputCommand()) {
+                try {
+                    const command = require(`./commands/${interaction.commandName}.js`);
+                    await command.execute(interaction, client);
+                } catch (error) {
+                    console.error(error);
+                    await interaction.reply({ content: '❌ Something went wrong', flags: 64 });
+                }
+            }
 
-// Slash commands handler
-client.on('interactionCreate', async interaction => {
-    if (interaction.isChatInputCommand()) {
-        try {
-            const command = require(`./commands/${interaction.commandName}.js`);
-            await command.execute(interaction, client);
-        } catch (error) {
-            console.error(error);
-            await interaction.reply({ content: '❌ Error', flags: 64 });
-        }
-    }
-    if (interaction.isButton()) {
-        try {
-            const buttonHandler = require('./handlers/buttonHandler');
-            await buttonHandler.handle(interaction, client);
-        } catch (error) {
-            console.error('Button error:', error);
-        }
-    }
-});
+            if (interaction.isButton()) {
+                try {
+                    const buttonHandler = require('./handlers/buttonHandler');
+                    await buttonHandler.handle(interaction, client);
+                } catch (error) {
+                    console.error('Button handler error:', error);
+                }
+            }
+        });
 
-// Start
-async function start() {
-    try {
-        await initDatabase();
-        console.log('✅ Database ready');
-        await client.login(config.token);
+        // Handle Prefix Commands
+        client.on('messageCreate', async message => {
+            if (message.author.bot) return;
+            if (!message.content.startsWith(PREFIX)) return;
+
+            const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+            const commandName = args.shift().toLowerCase();
+
+            // ==================== !helpout ====================
+            if (commandName === 'helpout') {
+                const helpEmbed = new EmbedBuilder()
+                    .setColor(0x00bfff)
+                    .setTitle('📋 Bot Prefix Commands')
+                    .setDescription('Here are all available prefix commands:')
+                    .setThumbnail(client.user.displayAvatarURL())
+                    .addFields(
+                        { name: '!clearchat @user', value: 'Clear all bot messages from DM with a specific user (Owner only)', inline: false },
+                        { name: '!deletehistory @user', value: 'Delete transaction history for a specific user (Owner only)', inline: false },
+                        { name: '!deletehistory all', value: 'Delete ALL transaction history (Owner only)', inline: false },
+                        { name: '!resetlimit @user', value: 'Reset withdrawal limit for a specific user (Owner/Admin/Support)', inline: false },
+                        { name: '!helpout', value: 'Show this help message', inline: false }
+                    )
+                    .setFooter({ text: 'Use / for slash commands like /cash-out, /rate, /view-cashouts, /history-cash-out' })
+                    .setTimestamp();
+
+                return message.reply({ embeds: [helpEmbed] });
+            }
+
+            // ==================== !clearchat ====================
+            if (commandName === 'clearchat') {
+                if (!message.member.roles.cache.has(config.roles.owner)) {
+                    return message.reply('❌ This command is for Owner only');
+                }
+
+                const targetUser = message.mentions.users.first();
+                if (!targetUser) {
+                    return message.reply('❌ Please mention a user! Usage: `!clearchat @user`');
+                }
+
+                await message.reply(`🔄 Clearing ALL bot messages from DM with ${targetUser.tag}...`);
+
+                let deletedCount = 0;
+                let hasMore = true;
+
+                try {
+                    const dmChannel = await targetUser.createDM();
+                    
+                    while (hasMore) {
+                        const messages = await dmChannel.messages.fetch({ limit: 100 });
+                        
+                        if (messages.size === 0) {
+                            hasMore = false;
+                            break;
+                        }
+                        
+                        const botMessages = messages.filter(msg => msg.author.id === client.user.id);
+                        
+                        if (botMessages.size === 0) {
+                            if (messages.size < 100) hasMore = false;
+                            continue;
+                        }
+                        
+                        for (const msg of botMessages.values()) {
+                            await msg.delete().catch(() => {});
+                            deletedCount++;
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        }
+                        
+                        if (messages.size < 100) hasMore = false;
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                    
+                    await message.reply(`✅ Deleted **${deletedCount}** messages from DM with ${targetUser.tag}`);
+                } catch (error) {
+                    console.error(error);
+                    await message.reply(`❌ Failed: ${error.message}`);
+                }
+            }
+
+            // ==================== !deletehistory ====================
+            if (commandName === 'deletehistory') {
+                if (!message.member.roles.cache.has(config.roles.owner)) {
+                    return message.reply('❌ This command is for Owner only');
+                }
+
+                const target = args[0];
+                if (!target) {
+                    return message.reply('❌ Please specify a user (@mention) or "all"\nUsage: `!deletehistory @user` or `!deletehistory all`');
+                }
+
+                if (target === 'all') {
+                    await message.reply('🔄 Deleting ALL transaction history...');
+                    const result = await deleteHistory('all');
+                    await message.reply(`✅ ${result.message}`);
+                } else {
+                    const targetUser = message.mentions.users.first();
+                    if (!targetUser) {
+                        return message.reply('❌ Please mention a valid user!\nUsage: `!deletehistory @user`');
+                    }
+                    await message.reply(`🔄 Deleting history for ${targetUser.tag}...`);
+                    const result = await deleteHistory(targetUser.id);
+                    await message.reply(`✅ ${result.message}`);
+                }
+            }
+
+            // ==================== !resetlimit ====================
+            if (commandName === 'resetlimit') {
+                // الرتب المسموح لها
+                const allowedResetRoles = [
+                    '1487214820276043967', // Owner
+                    '1487298785913606317', // Admin
+                    '1487299732215697469'  // Support
+                ];
+                
+                const hasAllowedRole = allowedResetRoles.some(roleId => message.member.roles.cache.has(roleId));
+                if (!hasAllowedRole) {
+                    return message.reply('❌ This command is for Owner, Admin, or Support only');
+                }
+
+                const targetUser = message.mentions.users.first();
+                if (!targetUser) {
+                    return message.reply('❌ Please mention a user! Usage: `!resetlimit @user`');
+                }
+
+                // جلب معلومات الـ Limit قبل المسح
+                const limitInfo = await getUserLimit(targetUser.id);
+                
+                if (!limitInfo.isLimited && (limitInfo.totalAmount === 0 || limitInfo.totalAmount < 2000)) {
+                    return message.reply(`✅ User ${targetUser.tag} does not have an active limit. Current total: ${limitInfo.totalAmount || 0}/2000`);
+                }
+
+                await message.reply(`🔄 Resetting withdrawal limit for ${targetUser.tag}...`);
+
+                const result = await resetUserLimit(targetUser.id);
+                
+                if (result.success) {
+                    const embed = new EmbedBuilder()
+                        .setColor(0x00ff00)
+                        .setTitle('✅ Limit Reset')
+                        .setDescription(`Withdrawal limit has been reset for ${targetUser.tag}`)
+                        .addFields(
+                            { name: '👤 User', value: `${targetUser}`, inline: true },
+                            { name: '📊 Previous Total', value: `${limitInfo.totalAmount || 0}/2000`, inline: true },
+                            { name: '🔄 Reset By', value: message.author.tag, inline: true },
+                            { name: '📅 Reset Time', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false }
+                        )
+                        .setThumbnail(targetUser.displayAvatarURL())
+                        .setTimestamp();
+                    
+                    await message.reply({ embeds: [embed] });
+                    
+                    // إيقاف الـ interval إذا كان موجود
+                    if (client.limitIntervals && client.limitIntervals.has(targetUser.id)) {
+                        clearInterval(client.limitIntervals.get(targetUser.id));
+                        client.limitIntervals.delete(targetUser.id);
+                    }
+                } else {
+                    await message.reply(`❌ Failed to reset limit: ${result.message}`);
+                }
+            }
+        });
+
+        client.login(config.token);
     } catch (error) {
-        console.error('Start error:', error);
+        console.error('Error starting bot:', error);
     }
 }
 
