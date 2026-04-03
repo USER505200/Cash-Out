@@ -1,12 +1,29 @@
 const sqlite3 = require('sqlite3').verbose();
 const { open } = require('sqlite');
 const path = require('path');
+const fs = require('fs');
 
 let db;
 
 async function initDatabase() {
     try {
-        const dbPath = path.join(__dirname, '..', 'database.db');
+        // تحديد مسار قاعدة البيانات - الحفظ الدائم في /data
+        let dbPath;
+        
+        // التحقق من وجود مجلد /data (في Railway)
+        if (fs.existsSync('/data')) {
+            dbPath = path.join('/data', 'database.db');
+        } 
+        // إذا كان هناك متغير بيئة DB_PATH
+        else if (process.env.DB_PATH) {
+            dbPath = process.env.DB_PATH;
+        }
+        // وإلا استخدم المجلد المحلي
+        else {
+            dbPath = path.join(__dirname, '..', 'database.db');
+        }
+        
+        console.log(`📁 Database path: ${dbPath}`);
         
         db = await open({
             filename: dbPath,
@@ -45,7 +62,7 @@ async function initDatabase() {
             await db.exec(`ALTER TABLE logs ADD COLUMN isLast BOOLEAN DEFAULT 0`);
             console.log('✅ Added isLast column to logs table');
         } catch (err) {
-            console.log('isLast column already exists or error:', err.message);
+            // العمود موجود بالفعل
         }
 
         // جدول بيانات الـ Workers
