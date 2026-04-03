@@ -245,106 +245,7 @@ module.exports = {
             });
         }
 
-        // ========== آخر عملية (total بالضبط 2000) ==========
-        if (limitResult.isLast) {
-            const limitedUntil = new Date();
-            limitedUntil.setHours(limitedUntil.getHours() + 28);
-            
-            const limitEmbed = new EmbedBuilder()
-                .setColor(0xff0000)
-                .setTitle('⛔ Withdrawal Limit Reached')
-                .setDescription(`<@${interaction.user.id}> has reached the **2000** withdrawal limit!`)
-                .setThumbnail(topRightImage)
-                .setImage(bottomImage)
-                .addFields(
-                    { name: '💰 Total Withdrawn', value: `${limitResult.totalAmount}/2000`, inline: true },
-                    { name: '⏰ Time Remaining', value: `**28h 0m 0s**`, inline: true },
-                    { name: '📅 Unlock Time', value: `<t:${Math.floor(limitedUntil / 1000)}:F>`, inline: false }
-                )
-                .setFooter({ text: 'GRINDORA SERVICES | Withdrawal limit: 2000 per 28 hours' })
-                .setTimestamp();
-
-            const msg = await interaction.reply({ embeds: [limitEmbed], fetchReply: true });
-            
-            if (!client.limitMessages) client.limitMessages = new Map();
-            client.limitMessages.set(interaction.user.id, {
-                channelId: interaction.channel.id,
-                messageId: msg.id,
-                totalAmount: limitResult.totalAmount,
-                limitedUntil: limitedUntil
-            });
-            
-            startLimitCountdown(client, interaction.user.id, msg, limitedUntil, limitResult.totalAmount);
-            
-            let number;
-            if (method === 'v-cash') {
-                number = workerData.vcashNumber;
-                if (!number) return;
-            } else {
-                number = workerData.cryptoAddress;
-                if (!number) return;
-            }
-
-            const rate = await getRate();
-            const currentRate = method === 'v-cash' ? rate.vcash : rate.crypto;
-            const total = amount * currentRate;
-            const orderId = generateOrderId();
-
-            const checkWalletMessage = `\`\`\`diff\n- Check wallet\n\`\`\`\`!w ${interaction.user.id}\`\n\n\`\`\`diff\n- If You Sure\n\`\`\`\`/remove_earnings amount:${amount} user:${interaction.user.id}\``;
-
-            const embed = new EmbedBuilder()
-                .setColor(0xffa500)
-                .setTitle('🟡 New Cash Out Request (LAST WITHDRAWAL)')
-                .setDescription(`**Order ID:** \`${orderId}\``)
-                .setThumbnail(topRightImage)
-                .setImage(bottomImage)
-                .addFields(
-                    { name: '👤 User', value: `${interaction.user} (${interaction.user.tag})`, inline: true },
-                    { name: '📢 Channel', value: `${interaction.channel}`, inline: true },
-                    { name: '💰 Amount', value: `${amount}`, inline: true },
-                    { name: '💳 Method', value: method === 'v-cash' ? 'V-Cash' : 'Crypto', inline: true },
-                    { name: '📞 Number/Address', value: `\`${number}\``, inline: false },
-                    { name: '📊 Current Rate', value: `${currentRate} ${method === 'v-cash' ? 'EGP' : 'USD'}`, inline: true },
-                    { name: '🧮 Total', value: `${total.toFixed(2)} ${method === 'v-cash' ? 'EGP' : 'USD'}`, inline: true },
-                    { name: '─────────────────', value: checkWalletMessage, inline: false },
-                    { name: '⚠️ LIMIT STATUS', value: `**THIS IS THE LAST WITHDRAWAL!** User will be limited after approval.`, inline: false }
-                )
-                .setFooter({ text: `Requested by ${interaction.user.tag}` })
-                .setTimestamp();
-
-            const approveButton = new ButtonBuilder()
-                .setCustomId(`approve_${orderId}_${interaction.user.id}_${amount}_${method}_${String(number).replace(/_/g, '-')}_${currentRate}_${total}_${interaction.channel.id}`)
-                .setLabel('Approve')
-                .setStyle(ButtonStyle.Success);
-
-            const cancelButton = new ButtonBuilder()
-                .setCustomId(`cancel_${orderId}_${interaction.user.id}_${amount}_${method}_${String(number).replace(/_/g, '-')}_${interaction.channel.id}`)
-                .setLabel('Cancel')
-                .setStyle(ButtonStyle.Danger);
-
-            const row = new ActionRowBuilder().addComponents(approveButton, cancelButton);
-
-            const ownerChannel = await client.channels.fetch(config.channels.approveChannel);
-            await ownerChannel.send({ embeds: [embed], components: [row] });
-
-            await saveLog({
-                orderId,
-                userId: interaction.user.id,
-                username: interaction.user.tag,
-                channelId: interaction.channel.id,
-                amount,
-                method,
-                number,
-                rate: currentRate,
-                total,
-                status: 'pending',
-                isLast: true
-            });
-            
-            return;
-        }
-
-        // ========== عملية عادية (أقل من 2000) ==========
+        // ========== التحقق من وجود رقم أو عنوان ==========
         let number;
         if (method === 'v-cash') {
             number = workerData.vcashNumber;
@@ -363,11 +264,13 @@ module.exports = {
         const total = amount * currentRate;
         const orderId = generateOrderId();
 
-        const checkWalletMessage = `\`\`\`diff\n- Check wallet\n\`\`\`\`!w ${interaction.user.id}\`\n\n\`\`\`diff\n- If You Sure\n\`\`\`\`/remove_earnings amount:${amount} user:${interaction.user.id}\``;
+        const checkWalletMessage = `\`\`\`diff\n- Check wallet\n\`\`\`\`!w ${interaction.user.id}\`\n\n\`\`\`diff\n- If You Sure\n\`\`\`\`/remove_earnings amount:${amount}m user:${interaction.user.id}\``;
 
+        const embedTitle = limitResult.isLast ? '🟡 New Cash Out Request (LAST WITHDRAWAL)' : '🟡 New Cash Out Request';
+        
         const embed = new EmbedBuilder()
             .setColor(0xffa500)
-            .setTitle('🟡 New Cash Out Request')
+            .setTitle(embedTitle)
             .setDescription(`**Order ID:** \`${orderId}\``)
             .setThumbnail(topRightImage)
             .setImage(bottomImage)
@@ -379,12 +282,18 @@ module.exports = {
                 { name: '📞 Number/Address', value: `\`${number}\``, inline: false },
                 { name: '📊 Current Rate', value: `${currentRate} ${method === 'v-cash' ? 'EGP' : 'USD'}`, inline: true },
                 { name: '🧮 Total', value: `${total.toFixed(2)} ${method === 'v-cash' ? 'EGP' : 'USD'}`, inline: true },
-                { name: '─────────────────', value: checkWalletMessage, inline: false },
-                { name: '📊 Limit Status', value: `${limitResult.totalAmount || amount}/2000 (${limitResult.remaining || 2000 - amount} remaining)`, inline: false }
+                { name: '─────────────────', value: checkWalletMessage, inline: false }
             )
             .setFooter({ text: `Requested by ${interaction.user.tag}` })
             .setTimestamp();
 
+        if (limitResult.isLast) {
+            embed.addFields({ name: '⚠️ LIMIT STATUS', value: `**THIS IS THE LAST WITHDRAWAL!** User will be limited after approval.`, inline: false });
+        } else {
+            embed.addFields({ name: '📊 Limit Status', value: `${limitResult.totalAmount || amount}/2000 (${limitResult.remaining || 2000 - amount} remaining)`, inline: false });
+        }
+
+        // استخدام stringify آمن للأرقام الكبيرة
         const approveButton = new ButtonBuilder()
             .setCustomId(`approve_${orderId}_${interaction.user.id}_${amount}_${method}_${String(number).replace(/_/g, '-')}_${currentRate}_${total}_${interaction.channel.id}`)
             .setLabel('Approve')
@@ -400,10 +309,11 @@ module.exports = {
         const ownerChannel = await client.channels.fetch(config.channels.approveChannel);
         await ownerChannel.send({ embeds: [embed], components: [row] });
 
-        await interaction.reply({ 
-            content: `✅ Withdrawal request sent successfully\n📋 Order ID: \`${orderId}\`\n📊 Limit: ${limitResult.totalAmount || amount}/2000`, 
-            flags: 64 
-        });
+        const replyMessage = limitResult.isLast 
+            ? `✅ Last withdrawal request sent successfully!\n📋 Order ID: \`${orderId}\`\n⚠️ You have reached the 2000 limit and will be restricted after approval.`
+            : `✅ Withdrawal request sent successfully\n📋 Order ID: \`${orderId}\`\n📊 Limit: ${limitResult.totalAmount || amount}/2000`;
+        
+        await interaction.reply({ content: replyMessage, flags: 64 });
 
         await saveLog({
             orderId,
@@ -416,7 +326,7 @@ module.exports = {
             rate: currentRate,
             total,
             status: 'pending',
-            isLast: false
+            isLast: limitResult.isLast || false
         });
     }
 };

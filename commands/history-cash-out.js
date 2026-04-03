@@ -10,16 +10,19 @@ module.exports = {
         .setDescription('View your cashout history (Worker only)'),
 
     async execute(interaction, client) {
+        // Check if user has Worker role
         const hasWorkerRole = interaction.member.roles.cache.has(config.roles.worker);
         if (!hasWorkerRole) {
             return interaction.reply({ content: '❌ This command is only for Workers', flags: 64 });
         }
 
+        // Check if user has data in database
         const workerData = await getWorkerByUserId(interaction.user.id);
         if (!workerData) {
             return interaction.reply({ content: '❌ You are not registered. Contact Owner to add your data.', flags: 64 });
         }
 
+        // Check if command is used in the correct channel
         if (interaction.channel.id !== workerData.channelId) {
             return interaction.reply({ content: `❌ You can only use /history-cash-out in <#${workerData.channelId}>`, flags: 64 });
         }
@@ -35,6 +38,7 @@ module.exports = {
             return interaction.reply({ embeds: [noDataEmbed], flags: 64 });
         }
 
+        // Store transactions in cache
         if (!client.historyCache) {
             client.historyCache = new Map();
         }
@@ -61,6 +65,7 @@ async function sendHistoryPage(interaction, client, userId, page) {
     const pageTransactions = transactions.slice(start, end);
     const totalPages = Math.ceil(transactions.length / itemsPerPage);
 
+    // Calculate stats
     let totalAmount = 0;
     let totalWithFees = 0;
     let approvedCount = 0;
@@ -91,6 +96,7 @@ async function sendHistoryPage(interaction, client, userId, page) {
         }
     }
 
+    // Stats Embed - بدون "with Fees"
     const statsEmbed = new EmbedBuilder()
         .setColor(0x00bfff)
         .setTitle(`📊 Your Cashout Statistics`)
@@ -108,6 +114,7 @@ async function sendHistoryPage(interaction, client, userId, page) {
         .setFooter({ text: `Page ${page + 1} of ${totalPages}` })
         .setTimestamp();
 
+    // Transactions Embed
     const transactionsEmbed = new EmbedBuilder()
         .setColor(0x00ff00)
         .setTitle(`📝 Your Transaction History (Page ${page + 1}/${totalPages})`);
@@ -135,6 +142,7 @@ async function sendHistoryPage(interaction, client, userId, page) {
         }
     }
 
+    // Create buttons with page number embedded
     const row = new ActionRowBuilder();
     
     if (page > 0) {
@@ -164,6 +172,7 @@ async function sendHistoryPage(interaction, client, userId, page) {
 
     const components = row.components.length > 0 ? [row] : [];
 
+    // Save current page in cache
     client.historyCache.set(userId, { transactions, currentPage: page });
 
     if (interaction.replied) {
@@ -173,6 +182,7 @@ async function sendHistoryPage(interaction, client, userId, page) {
     }
 }
 
+// Handle button interactions for history
 async function handleHistoryButtons(interaction, client) {
     if (!interaction.customId.startsWith('history_')) return false;
 
@@ -181,11 +191,13 @@ async function handleHistoryButtons(interaction, client) {
     const action = parts[1];
     const userId = parts[2];
     
+    // Extract page number if exists (for prev/next)
     let targetPage = null;
     if (parts.length > 3) {
         targetPage = parseInt(parts[3]);
     }
 
+    // Check if the user is the owner of the session
     if (interaction.user.id !== userId) {
         await interaction.reply({ content: '❌ You cannot control this menu.', ephemeral: true });
         return true;
@@ -216,7 +228,10 @@ async function handleHistoryButtons(interaction, client) {
         return true;
     }
 
+    // Update cache
     client.historyCache.set(userId, { transactions, currentPage });
+    
+    // Send the updated page
     await sendHistoryPage(interaction, client, userId, currentPage);
     return true;
 }

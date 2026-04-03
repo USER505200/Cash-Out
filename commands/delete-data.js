@@ -5,6 +5,7 @@ const { deleteWorker, getWorkerByUserId } = require('../utils/database');
 const topRightImage = 'https://media.discordapp.net/attachments/1487311776256098414/1489130417838882916/HHHHHHHHHHHHHHHHHHHHHH.gif';
 const bottomImage = 'https://media.discordapp.net/attachments/1489063780813111539/1489203223985393794/Untitled-1.gif?ex=69cf9014&is=69ce3e94&hm=c790ea2a988c1c3ca6429459028d7ef53308afe7bf54d858f7a6383ae447ffcd&';
 
+// الرتب المسموح لها
 const allowedRoles = [
     '1487214820276043967', // Owner
     '1487298785913606317', // Admin
@@ -17,6 +18,7 @@ module.exports = {
         .setDescription('Delete worker data (Owner/Admin/Support)'),
 
     async execute(interaction, client) {
+        // Check if user has allowed role
         const hasAllowedRole = allowedRoles.some(roleId => interaction.member.roles.cache.has(roleId));
         if (!hasAllowedRole) {
             return interaction.reply({ content: '❌ This command is for Owner, Admin, or Support only', flags: 64 });
@@ -47,6 +49,7 @@ module.exports = {
 
         await interaction.showModal(modal);
 
+        // Handle modal submit
         const filter = (i) => i.customId === 'deleteDataModal' && i.user.id === interaction.user.id;
         
         try {
@@ -62,6 +65,7 @@ module.exports = {
                 return;
             }
 
+            // Get worker info before deletion
             const workerData = await getWorkerByUserId(workerId);
             if (!workerData) {
                 if (modalInteraction.isRepliable() && !modalInteraction.replied) {
@@ -80,14 +84,17 @@ module.exports = {
 
             const result = await deleteWorker(workerId);
 
+            // Reply only once
             if (modalInteraction.isRepliable() && !modalInteraction.replied) {
                 await modalInteraction.reply({ content: result.message, flags: 64 });
             }
 
+            // Send log to approveLogs channel
             if (result.success) {
                 try {
                     const logsChannel = await client.channels.fetch(config.channels.approveLogs);
                     
+                    // Get role name for footer
                     let roleName = 'Unknown';
                     if (interaction.member.roles.cache.has('1487214820276043967')) roleName = 'Owner';
                     else if (interaction.member.roles.cache.has('1487298785913606317')) roleName = 'Admin';
@@ -111,6 +118,7 @@ module.exports = {
                         .setTimestamp();
                     
                     await logsChannel.send({ embeds: [logEmbed] });
+                    console.log(`✅ Log sent for deleted worker: ${workerId}`);
                 } catch (err) {
                     console.log('Could not send log:', err);
                 }

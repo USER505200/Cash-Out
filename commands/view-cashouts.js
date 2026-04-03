@@ -125,4 +125,5 @@ async function sendPage(interaction, client, userId, page) {
     }
 }
 
+// Export the sendPage function for use in buttonHandler
 module.exports.sendPage = sendPage;

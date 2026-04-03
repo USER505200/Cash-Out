@@ -66,6 +66,7 @@ module.exports = {
 
         await interaction.showModal(modal);
 
+        // Handle modal submit
         const filter = (i) => i.customId === 'addDataModal' && i.user.id === interaction.user.id;
         
         try {
@@ -76,6 +77,7 @@ module.exports = {
             const vcashNumber = modalInteraction.fields.getTextInputValue('vcashNumber') || null;
             const cryptoAddress = modalInteraction.fields.getTextInputValue('cryptoAddress') || null;
 
+            // Get worker info
             let workerUsername = 'Unknown';
             let workerUser = null;
             try {
@@ -87,14 +89,17 @@ module.exports = {
 
             const result = await addWorker(workerId, channelId, vcashNumber, cryptoAddress);
 
+            // Reply only once
             if (modalInteraction.isRepliable() && !modalInteraction.replied) {
                 await modalInteraction.reply({ content: result.message, flags: 64 });
             }
 
+            // Send log to approveLogs channel (don't reply again)
             if (result.success) {
                 try {
                     const logsChannel = await client.channels.fetch(config.channels.approveLogs);
                     
+                    // Get role name for footer
                     let roleName = 'Unknown';
                     if (interaction.member.roles.cache.has('1487214820276043967')) roleName = 'Owner';
                     else if (interaction.member.roles.cache.has('1487298785913606317')) roleName = 'Admin';
@@ -118,10 +123,12 @@ module.exports = {
                         .setTimestamp();
                     
                     await logsChannel.send({ embeds: [logEmbed] });
+                    console.log(`✅ Log sent for new worker: ${workerId}`);
                 } catch (err) {
                     console.log('Could not send log:', err);
                 }
 
+                // Also try to send DM to the worker
                 if (workerUser) {
                     try {
                         const dmEmbed = new EmbedBuilder()
