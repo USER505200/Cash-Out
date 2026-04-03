@@ -7,13 +7,6 @@ const { generateOrderId } = require('../utils/helpers');
 const topRightImage = 'https://media.discordapp.net/attachments/1487311776256098414/1489130417838882916/HHHHHHHHHHHHHHHHHHHHHH.gif';
 const bottomImage = 'https://media.discordapp.net/attachments/1489063780813111539/1489203223985393794/Untitled-1.gif?ex=69cf9014&is=69ce3e94&hm=c790ea2a988c1c3ca6429459028d7ef53308afe7bf54d858f7a6383ae447ffcd&';
 
-// الرتب المسموح لها بتجاوز الـ Limit
-const bypassRoles = [
-    '1487214820276043967', // Owner
-    '1487298785913606317', // Admin
-    '1487299732215697469'  // Support
-];
-
 // دالة العد التنازلي
 async function startLimitCountdown(client, userId, message, targetDate, totalAmount) {
     if (client.limitIntervals && client.limitIntervals.get(userId)) {
@@ -102,13 +95,10 @@ module.exports = {
             return interaction.reply({ content: '❌ This command is only for Workers', flags: 64 });
         }
 
-        // التحقق من الرتبة لتجاوز الـ Limit
-        const canBypassLimit = bypassRoles.some(roleId => interaction.member.roles.cache.has(roleId));
-        
         // ========== فحص إذا كان المستخدم محدود حالياً ==========
         const limitedCheck = await isUserLimited(interaction.user.id);
         
-        if (limitedCheck.limited && !canBypassLimit) {
+        if (limitedCheck.limited) {
             const targetDate = new Date(limitedCheck.limitedUntil);
             const remaining = limitedCheck.remainingTime || await getRemainingTime(interaction.user.id);
             
@@ -152,14 +142,6 @@ module.exports = {
             return;
         }
 
-        // إذا كان المستخدم محدوداً لكن عنده صلاحية تجاوز، نعرض تحذير فقط
-        if (limitedCheck.limited && canBypassLimit) {
-            await interaction.reply({ 
-                content: `⚠️ **Warning:** You have reached the limit (${limitedCheck.totalAmount}/2000) but as Owner/Admin/Support you can still withdraw.`, 
-                flags: 64 
-            });
-        }
-
         // Check if user has data in database
         const workerData = await getWorkerByUserId(interaction.user.id);
         if (!workerData) {
@@ -175,16 +157,9 @@ module.exports = {
         const method = interaction.options.getString('method');
 
         // ========== فحص الـ Limit ==========
-        let limitResult;
+        const limitResult = await updateUserLimit(interaction.user.id, amount);
         
-        if (canBypassLimit) {
-            // إذا كان المستخدم عنده صلاحية تجاوز، لا نطبق الـ Limit
-            limitResult = { success: true, totalAmount: 0, remaining: 2000, isLast: false };
-        } else {
-            limitResult = await updateUserLimit(interaction.user.id, amount);
-        }
-        
-        if (limitResult.limited && !canBypassLimit) {
+        if (limitResult.limited) {
             const remainingTime = await getRemainingTime(interaction.user.id);
             const targetDate = remainingTime ? remainingTime.until : new Date();
             
@@ -263,7 +238,7 @@ module.exports = {
             return;
         }
 
-        if (limitResult.wouldExceed && !canBypassLimit) {
+        if (limitResult.wouldExceed) {
             return interaction.reply({ 
                 content: `❌ You only have **${limitResult.remaining}** remaining out of 2000 limit. You cannot withdraw ${amount}.`, 
                 flags: 64 
@@ -312,9 +287,7 @@ module.exports = {
             .setFooter({ text: `Requested by ${interaction.user.tag}` })
             .setTimestamp();
 
-        if (canBypassLimit) {
-            embed.addFields({ name: '👑 BYPASS', value: `**Owner/Admin/Support - Limit bypassed**`, inline: false });
-        } else if (limitResult.isLast) {
+        if (limitResult.isLast) {
             embed.addFields({ name: '⚠️ LIMIT STATUS', value: `**THIS IS THE LAST WITHDRAWAL!** User will be limited after approval.`, inline: false });
         } else {
             embed.addFields({ name: '📊 Limit Status', value: `${limitResult.totalAmount || amount}/2000 (${limitResult.remaining || 2000 - amount} remaining)`, inline: false });
@@ -336,14 +309,9 @@ module.exports = {
         const ownerChannel = await client.channels.fetch(config.channels.approveChannel);
         await ownerChannel.send({ embeds: [embed], components: [row] });
 
-        let replyMessage;
-        if (canBypassLimit) {
-            replyMessage = `✅ Withdrawal request sent successfully! (Limit bypassed as Owner/Admin/Support)\n📋 Order ID: \`${orderId}\``;
-        } else if (limitResult.isLast) {
-            replyMessage = `✅ Last withdrawal request sent successfully!\n📋 Order ID: \`${orderId}\`\n⚠️ You have reached the 2000 limit and will be restricted after approval.`;
-        } else {
-            replyMessage = `✅ Withdrawal request sent successfully\n📋 Order ID: \`${orderId}\`\n📊 Limit: ${limitResult.totalAmount || amount}/2000`;
-        }
+        const replyMessage = limitResult.isLast 
+            ? `✅ Last withdrawal request sent successfully!\n📋 Order ID: \`${orderId}\`\n⚠️ You have reached the 2000 limit and will be restricted after approval.`
+            : `✅ Withdrawal request sent successfully\n📋 Order ID: \`${orderId}\`\n📊 Limit: ${limitResult.totalAmount || amount}/2000`;
         
         await interaction.reply({ content: replyMessage, flags: 64 });
 
