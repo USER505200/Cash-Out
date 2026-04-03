@@ -1,73 +1,11 @@
 const { SlashCommandBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('discord.js');
 const config = require('../config.json');
-const { getRate, saveLog, getWorkerByUserId, updateUserLimit, getRemainingTime, isUserLimited } = require('../utils/database');
+const { getRate, saveLog, getWorkerByUserId, updateUserLimit, getRemainingTime } = require('../utils/database');
 const { generateOrderId } = require('../utils/helpers');
 
 // الصور
 const topRightImage = 'https://media.discordapp.net/attachments/1487311776256098414/1489130417838882916/HHHHHHHHHHHHHHHHHHHHHH.gif';
-const bottomImage = 'https://media.discordapp.net/attachments/1489063780813111539/1489203223985393794/Untitled-1.gif?ex=69cf9014&is=69ce3e94&hm=c790ea2a988c1c3ca6429459028d7ef53308afe7bf54d858f7a6383ae447ffcd&';
-
-// دالة العد التنازلي
-async function startLimitCountdown(client, userId, message, targetDate, totalAmount) {
-    if (client.limitIntervals && client.limitIntervals.get(userId)) {
-        clearInterval(client.limitIntervals.get(userId));
-    }
-    if (!client.limitIntervals) client.limitIntervals = new Map();
-    
-    const updateEmbed = async () => {
-        const now = new Date();
-        const diffMs = targetDate - now;
-        
-        if (diffMs <= 0) {
-            clearInterval(interval);
-            client.limitIntervals.delete(userId);
-            client.limitMessages.delete(userId);
-            
-            const expiredEmbed = new EmbedBuilder()
-                .setColor(0x00ff00)
-                .setTitle('✅ Limit Expired')
-                .setDescription(`<@${userId}>, your withdrawal limit has been **RESET**! You can now withdraw again.`)
-                .setThumbnail(topRightImage)
-                .setImage(bottomImage)
-                .addFields(
-                    { name: '💰 Total Withdrawn', value: `${totalAmount}/2000 (Reset)`, inline: true },
-                    { name: '📅 Reset Time', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true }
-                )
-                .setFooter({ text: 'GRINDORA SERVICES | You can now request withdrawals again' })
-                .setTimestamp();
-            
-            await message.edit({ embeds: [expiredEmbed] }).catch(() => {});
-            return;
-        }
-        
-        const diffSec = Math.floor(diffMs / 1000);
-        const diffMin = Math.floor(diffSec / 60);
-        const diffHours = Math.floor(diffMin / 60);
-        const remainingSec = diffSec % 60;
-        const remainingMin = diffMin % 60;
-        
-        const updatedEmbed = new EmbedBuilder()
-            .setColor(0xff0000)
-            .setTitle('⛔ Withdrawal Limit Reached')
-            .setDescription(`<@${userId}> has reached the **2000** withdrawal limit!`)
-            .setThumbnail(topRightImage)
-            .setImage(bottomImage)
-            .addFields(
-                { name: '💰 Total Withdrawn', value: `${totalAmount}/2000`, inline: true },
-                { name: '⏰ Time Remaining', value: `**${diffHours}h ${remainingMin}m ${remainingSec}s**`, inline: true },
-                { name: '📅 Unlock Time', value: `<t:${Math.floor(targetDate / 1000)}:F>`, inline: false }
-            )
-            .setFooter({ text: 'GRINDORA SERVICES | Withdrawal limit: 2000 per 28 hours' })
-            .setTimestamp();
-        
-        await message.edit({ embeds: [updatedEmbed] }).catch(() => {});
-    };
-    
-    await updateEmbed();
-    
-    const interval = setInterval(updateEmbed, 1000);
-    client.limitIntervals.set(userId, interval);
-}
+const bottomImage = 'https://cdn.discordapp.com/attachments/1488636198225186899/1488946591749505186/Untitled-1.gif';
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -95,53 +33,6 @@ module.exports = {
             return interaction.reply({ content: '❌ This command is only for Workers', flags: 64 });
         }
 
-        // ========== فحص إذا كان المستخدم محدود حالياً ==========
-        const limitedCheck = await isUserLimited(interaction.user.id);
-        
-        if (limitedCheck.limited) {
-            const targetDate = new Date(limitedCheck.limitedUntil);
-            const remaining = limitedCheck.remainingTime || await getRemainingTime(interaction.user.id);
-            
-            const limitEmbed = new EmbedBuilder()
-                .setColor(0xff0000)
-                .setTitle('⛔ Withdrawal Limit Reached')
-                .setDescription(`<@${interaction.user.id}>, you have reached the **2000** withdrawal limit!`)
-                .setThumbnail(topRightImage)
-                .setImage(bottomImage)
-                .addFields(
-                    { name: '💰 Total Withdrawn', value: `${limitedCheck.totalAmount}/2000`, inline: true },
-                    { name: '⏰ Time Remaining', value: remaining ? `**${remaining.hours}h ${remaining.minutes}m ${remaining.seconds}s**` : 'Calculating...', inline: true },
-                    { name: '📅 Unlock Time', value: `<t:${Math.floor(targetDate / 1000)}:F>`, inline: false }
-                )
-                .setFooter({ text: 'GRINDORA SERVICES | Withdrawal limit: 2000 per 28 hours' })
-                .setTimestamp();
-
-            if (!client.limitMessages) client.limitMessages = new Map();
-            const existingMsg = client.limitMessages.get(interaction.user.id);
-            
-            if (existingMsg) {
-                try {
-                    const channel = await client.channels.fetch(existingMsg.channelId);
-                    const msg = await channel.messages.fetch(existingMsg.messageId);
-                    await msg.edit({ embeds: [limitEmbed] });
-                    return interaction.reply({ content: '⛔ You are currently under withdrawal limit. Check the embed above.', flags: 64 });
-                } catch (err) {
-                    client.limitMessages.delete(interaction.user.id);
-                }
-            }
-            
-            const msg = await interaction.reply({ embeds: [limitEmbed], fetchReply: true });
-            client.limitMessages.set(interaction.user.id, {
-                channelId: interaction.channel.id,
-                messageId: msg.id,
-                totalAmount: limitedCheck.totalAmount,
-                limitedUntil: targetDate
-            });
-            
-            startLimitCountdown(client, interaction.user.id, msg, targetDate, limitedCheck.totalAmount);
-            return;
-        }
-
         // Check if user has data in database
         const workerData = await getWorkerByUserId(interaction.user.id);
         if (!workerData) {
@@ -159,38 +50,10 @@ module.exports = {
         // ========== فحص الـ Limit ==========
         const limitResult = await updateUserLimit(interaction.user.id, amount);
         
-        if (limitResult.limited) {
+        // ✅ إذا كان الـ Limit مفعل، امنع العملية واعرض Embed الأحمر
+        if (limitResult.limited === true) {
             const remainingTime = await getRemainingTime(interaction.user.id);
-            const targetDate = remainingTime ? remainingTime.until : new Date();
-            
-            if (!client.limitMessages) client.limitMessages = new Map();
-            const existingMessage = client.limitMessages.get(interaction.user.id);
-            
-            if (existingMessage) {
-                try {
-                    const channel = await client.channels.fetch(existingMessage.channelId);
-                    const msg = await channel.messages.fetch(existingMessage.messageId);
-                    
-                    const updatedEmbed = new EmbedBuilder()
-                        .setColor(0xff0000)
-                        .setTitle('⛔ Withdrawal Limit Reached')
-                        .setDescription(`<@${interaction.user.id}> has reached the **2000** withdrawal limit!`)
-                        .setThumbnail(topRightImage)
-                        .setImage(bottomImage)
-                        .addFields(
-                            { name: '💰 Total Withdrawn', value: `${limitResult.totalAmount}/2000`, inline: true },
-                            { name: '⏰ Time Remaining', value: remainingTime ? `**${remainingTime.hours}h ${remainingTime.minutes}m ${remainingTime.seconds}s**` : 'Calculating...', inline: true },
-                            { name: '📅 Unlock Time', value: `<t:${Math.floor(targetDate / 1000)}:F>`, inline: false }
-                        )
-                        .setFooter({ text: 'GRINDORA SERVICES | Withdrawal limit: 2000 per 28 hours' })
-                        .setTimestamp();
-                    
-                    await msg.edit({ embeds: [updatedEmbed] });
-                    return interaction.reply({ content: '⛔ You are still under withdrawal limit. Check the embed above.', flags: 64 });
-                } catch (err) {
-                    client.limitMessages.delete(interaction.user.id);
-                }
-            }
+            const targetDate = remainingTime?.until || new Date(Date.now() + 28 * 60 * 60 * 1000);
             
             const limitEmbed = new EmbedBuilder()
                 .setColor(0xff0000)
@@ -200,44 +63,17 @@ module.exports = {
                 .setImage(bottomImage)
                 .addFields(
                     { name: '💰 Total Withdrawn', value: `${limitResult.totalAmount}/2000`, inline: true },
-                    { name: '⏰ Time Remaining', value: remainingTime ? `**${remainingTime.hours}h ${remainingTime.minutes}m ${remainingTime.seconds}s**` : 'Calculating...', inline: true },
-                    { name: '📅 Unlock Time', value: `<t:${Math.floor(targetDate / 1000)}:F>`, inline: false }
+                    { name: '⏰ Time Remaining', value: `**${remainingTime?.hours || 27}h ${remainingTime?.minutes || 59}m ${remainingTime?.seconds || 59}s**`, inline: true },
+                    { name: '📅 Unlock Time', value: remainingTime ? `<t:${Math.floor(remainingTime.until / 1000)}:F>` : 'Calculating...', inline: false }
                 )
                 .setFooter({ text: 'GRINDORA SERVICES | Withdrawal limit: 2000 per 28 hours' })
                 .setTimestamp();
 
-            const msg = await interaction.reply({ embeds: [limitEmbed], fetchReply: true });
-            
-            client.limitMessages.set(interaction.user.id, {
-                channelId: interaction.channel.id,
-                messageId: msg.id,
-                totalAmount: limitResult.totalAmount,
-                limitedUntil: targetDate
-            });
-            
-            try {
-                const logsChannel = await client.channels.fetch(config.channels.approveLogs);
-                const notificationEmbed = new EmbedBuilder()
-                    .setColor(0xff0000)
-                    .setTitle('⛔ Withdrawal Limit Reached')
-                    .setDescription(`<@${interaction.user.id}> has reached the **2000** withdrawal limit!`)
-                    .setThumbnail(topRightImage)
-                    .setImage(bottomImage)
-                    .addFields(
-                        { name: '💰 Total Withdrawn', value: `${limitResult.totalAmount}/2000`, inline: true },
-                        { name: '⏰ Time Remaining', value: remainingTime ? `**${remainingTime.hours}h ${remainingTime.minutes}m ${remainingTime.seconds}s**` : 'Calculating...', inline: true },
-                        { name: '📅 Unlock Time', value: `<t:${Math.floor(targetDate / 1000)}:F>`, inline: false }
-                    )
-                    .setFooter({ text: 'GRINDORA SERVICES | Withdrawal limit: 2000 per 28 hours' })
-                    .setTimestamp();
-                
-                await logsChannel.send({ embeds: [notificationEmbed] });
-            } catch (err) {}
-            
-            startLimitCountdown(client, interaction.user.id, msg, targetDate, limitResult.totalAmount);
+            await interaction.reply({ embeds: [limitEmbed], flags: 64 });
             return;
         }
 
+        // إذا كان المبلغ هيعدي الحد (أكبر من 2000)
         if (limitResult.wouldExceed) {
             return interaction.reply({ 
                 content: `❌ You only have **${limitResult.remaining}** remaining out of 2000 limit. You cannot withdraw ${amount}.`, 
@@ -245,7 +81,7 @@ module.exports = {
             });
         }
 
-        // ========== التحقق من وجود رقم أو عنوان ==========
+        // Get the number/address from worker's data
         let number;
         if (method === 'v-cash') {
             number = workerData.vcashNumber;
@@ -264,13 +100,13 @@ module.exports = {
         const total = amount * currentRate;
         const orderId = generateOrderId();
 
-        const checkWalletMessage = `\`\`\`diff\n- Check wallet\n\`\`\`\`!w ${interaction.user.id}\`\n\n\`\`\`diff\n- If You Sure\n\`\`\`\`/remove_earnings amount:${amount}m user:${interaction.user.id}\``;
+        // رسالة Check Wallet
+        const checkWalletMessage = `\`\`\`diff\n- Check wallet\n\`\`\`\`!w ${interaction.user.id}\`\n\n\`\`\`diff\n- If You Sure\n\`\`\`\`/remove_earnings amount:${amount} user:${interaction.user.id}\``;
 
-        const embedTitle = limitResult.isLast ? '🟡 New Cash Out Request (LAST WITHDRAWAL)' : '🟡 New Cash Out Request';
-        
+        // Create embed for owner
         const embed = new EmbedBuilder()
             .setColor(0xffa500)
-            .setTitle(embedTitle)
+            .setTitle('🟡 New Cash Out Request')
             .setDescription(`**Order ID:** \`${orderId}\``)
             .setThumbnail(topRightImage)
             .setImage(bottomImage)
@@ -282,25 +118,19 @@ module.exports = {
                 { name: '📞 Number/Address', value: `\`${number}\``, inline: false },
                 { name: '📊 Current Rate', value: `${currentRate} ${method === 'v-cash' ? 'EGP' : 'USD'}`, inline: true },
                 { name: '🧮 Total', value: `${total.toFixed(2)} ${method === 'v-cash' ? 'EGP' : 'USD'}`, inline: true },
-                { name: '─────────────────', value: checkWalletMessage, inline: false }
+                { name: '─────────────────', value: checkWalletMessage, inline: false },
+                { name: '📊 Limit Status', value: `${limitResult.totalAmount || amount}/2000 (${limitResult.remaining || 2000 - amount} remaining)${limitResult.isLast ? ' ⚠️ LAST WITHDRAWAL - WILL BE LIMITED AFTER APPROVAL!' : ''}`, inline: false }
             )
             .setFooter({ text: `Requested by ${interaction.user.tag}` })
             .setTimestamp();
 
-        if (limitResult.isLast) {
-            embed.addFields({ name: '⚠️ LIMIT STATUS', value: `**THIS IS THE LAST WITHDRAWAL!** User will be limited after approval.`, inline: false });
-        } else {
-            embed.addFields({ name: '📊 Limit Status', value: `${limitResult.totalAmount || amount}/2000 (${limitResult.remaining || 2000 - amount} remaining)`, inline: false });
-        }
-
-        // استخدام stringify آمن للأرقام الكبيرة
         const approveButton = new ButtonBuilder()
-            .setCustomId(`approve_${orderId}_${interaction.user.id}_${amount}_${method}_${String(number).replace(/_/g, '-')}_${currentRate}_${total}_${interaction.channel.id}`)
+            .setCustomId(`approve_${orderId}_${interaction.user.id}_${amount}_${method}_${number}_${currentRate}_${total}_${interaction.channel.id}`)
             .setLabel('Approve')
             .setStyle(ButtonStyle.Success);
 
         const cancelButton = new ButtonBuilder()
-            .setCustomId(`cancel_${orderId}_${interaction.user.id}_${amount}_${method}_${String(number).replace(/_/g, '-')}_${interaction.channel.id}`)
+            .setCustomId(`cancel_${orderId}_${interaction.user.id}_${amount}_${method}_${number}_${interaction.channel.id}`)
             .setLabel('Cancel')
             .setStyle(ButtonStyle.Danger);
 
@@ -309,11 +139,11 @@ module.exports = {
         const ownerChannel = await client.channels.fetch(config.channels.approveChannel);
         await ownerChannel.send({ embeds: [embed], components: [row] });
 
-        const replyMessage = limitResult.isLast 
-            ? `✅ Last withdrawal request sent successfully!\n📋 Order ID: \`${orderId}\`\n⚠️ You have reached the 2000 limit and will be restricted after approval.`
-            : `✅ Withdrawal request sent successfully\n📋 Order ID: \`${orderId}\`\n📊 Limit: ${limitResult.totalAmount || amount}/2000`;
-        
-        await interaction.reply({ content: replyMessage, flags: 64 });
+        // رسالة نجاح عادية
+        await interaction.reply({ 
+            content: `✅ Withdrawal request sent successfully\n📋 Order ID: \`${orderId}\`\n📊 Limit: ${limitResult.totalAmount || amount}/2000`, 
+            flags: 64 
+        });
 
         await saveLog({
             orderId,
