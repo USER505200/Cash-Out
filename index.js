@@ -2,7 +2,7 @@ const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } = require('disco
 const fs = require('fs');
 const path = require('path');
 const config = require('./config.json');
-const { initDatabase, deleteHistory, resetUserLimit, getUserLimit } = require('./utils/mongodb'); // ← غير إلى mongodb
+const { initDatabase, deleteHistory, resetUserLimit, getUserLimit } = require('./utils/database');
 
 const client = new Client({ 
     intents: [
@@ -15,12 +15,11 @@ const client = new Client({
 });
 
 const PREFIX = '!';
-const token = process.env.TOKEN || config.token; // ← أضف هذا السطر
 
 async function start() {
     try {
         await initDatabase();
-        console.log('✅ Database ready (MongoDB)');
+        console.log('✅ Database ready');
 
         const commands = [];
         const commandsPath = path.join(__dirname, 'commands');
@@ -40,7 +39,7 @@ async function start() {
             }
         }
 
-        const rest = new REST({ version: '10' }).setToken(token);
+        const rest = new REST({ version: '10' }).setToken(config.token);
 
         client.once('ready', async () => {
             console.log(`✅ Logged in as ${client.user.tag}`);
@@ -63,7 +62,6 @@ async function start() {
             }
         });
 
-        // باقي الكود كما هو...
         client.on('interactionCreate', async interaction => {
             if (interaction.isChatInputCommand()) {
                 try {
@@ -239,7 +237,7 @@ async function start() {
             }
         });
 
-        client.login(token);
+        client.login(config.token);
     } catch (error) {
         console.error('Error starting bot:', error);
     }
