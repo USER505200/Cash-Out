@@ -293,13 +293,14 @@ module.exports = {
             embed.addFields({ name: '📊 Limit Status', value: `${limitResult.totalAmount || amount}/2000 (${limitResult.remaining || 2000 - amount} remaining)`, inline: false });
         }
 
+        // استخدام stringify آمن للأرقام الكبيرة
         const approveButton = new ButtonBuilder()
-            .setCustomId(`approve_${orderId}_${interaction.user.id}_${amount}_${method}_${number}_${currentRate}_${total}_${interaction.channel.id}`)
+            .setCustomId(`approve_${orderId}_${interaction.user.id}_${amount}_${method}_${String(number).replace(/_/g, '-')}_${currentRate}_${total}_${interaction.channel.id}`)
             .setLabel('Approve')
             .setStyle(ButtonStyle.Success);
 
         const cancelButton = new ButtonBuilder()
-            .setCustomId(`cancel_${orderId}_${interaction.user.id}_${amount}_${method}_${number}_${interaction.channel.id}`)
+            .setCustomId(`cancel_${orderId}_${interaction.user.id}_${amount}_${method}_${String(number).replace(/_/g, '-')}_${interaction.channel.id}`)
             .setLabel('Cancel')
             .setStyle(ButtonStyle.Danger);
 
