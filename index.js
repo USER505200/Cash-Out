@@ -4,6 +4,17 @@ const path = require('path');
 const config = require('./config.json');
 const { initDatabase, deleteHistory, resetUserLimit, getUserLimit } = require('./utils/database');
 
+// ==================== استخدام متغيرات البيئة ====================
+// متغيرات البيئة في Railway تتجاوز القيم في config.json
+const TOKEN = process.env.TOKEN || config.token;
+const CLIENT_ID = process.env.CLIENT_ID || config.clientId;
+const GUILD_ID = process.env.GUILD_ID || config.guildId;
+
+// تحديث config بالقيم النهائية
+config.token = TOKEN;
+config.clientId = CLIENT_ID;
+config.guildId = GUILD_ID;
+
 const client = new Client({ 
     intents: [
         GatewayIntentBits.Guilds,
@@ -20,6 +31,9 @@ async function start() {
     try {
         await initDatabase();
         console.log('✅ Database ready');
+        console.log(`📌 Using Token: ${TOKEN ? TOKEN.substring(0, 20) + '...' : 'NOT FOUND'}`);
+        console.log(`📌 Client ID: ${CLIENT_ID}`);
+        console.log(`📌 Guild ID: ${GUILD_ID}`);
 
         // Slash commands
         const commands = [];
@@ -40,10 +54,11 @@ async function start() {
             }
         }
 
-        const rest = new REST({ version: '10' }).setToken(config.token);
+        const rest = new REST({ version: '10' }).setToken(TOKEN);
 
         client.once('ready', async () => {
             console.log(`✅ Logged in as ${client.user.tag}`);
+            console.log(`✅ Bot ID: ${client.user.id}`);
             
             // تنظيف الـ intervals القديمة
             if (client.limitIntervals) {
@@ -55,12 +70,12 @@ async function start() {
 
             try {
                 await rest.put(
-                    Routes.applicationGuildCommands(config.clientId, config.guildId),
+                    Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
                     { body: commands }
                 );
                 console.log('✅ Slash commands registered');
             } catch (error) {
-                console.error(error);
+                console.error('❌ Failed to register commands:', error.message);
             }
         });
 
@@ -248,9 +263,19 @@ async function start() {
             }
         });
 
-        client.login(config.token);
+        // التحقق من وجود التوكن قبل محاولة تسجيل الدخول
+        if (!TOKEN || TOKEN === 'undefined' || TOKEN === 'null' || TOKEN.length < 50) {
+            console.error('❌ Invalid or missing Discord Bot Token!');
+            console.error('Please set TOKEN environment variable in Railway');
+            console.error('Or update config.json with a valid token');
+            process.exit(1);
+        }
+
+        await client.login(TOKEN);
+        
     } catch (error) {
         console.error('Error starting bot:', error);
+        process.exit(1);
     }
 }
 
