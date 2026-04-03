@@ -4,8 +4,8 @@ const { getRate, saveLog, getWorkerByUserId, updateUserLimit, getRemainingTime, 
 const { generateOrderId } = require('../utils/helpers');
 
 // الصور - استخدم روابط Imgur مضمونة
-const topRightImage = 'https://i.imgur.com/5QGk2VU.gif';
-const bottomImage = 'https://i.imgur.com/8K1nZtL.gif';
+const topRightImage = 'https://cdn.discordapp.com/attachments/1489497861350494339/1489723944582910002/word_1.gif?ex=69d1750a&is=69d0238a&hm=e9861e30bd5918e66c2d324e9bf21104bd21d8c18de12fb6cfa00681ce6f51e1&';
+const bottomImage = 'https://cdn.discordapp.com/attachments/1489497861350494339/1489730355316392088/Untitled-1.gif?ex=69d17b02&is=69d02982&hm=91bba9f3cb622da72a3555f8a9ed89383f533898b0172e271605523595e1ce54&';
 
 // دالة العد التنازلي
 async function startLimitCountdown(client, userId, message, targetDate, totalAmount) {
