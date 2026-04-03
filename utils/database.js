@@ -39,9 +39,6 @@ async function initDatabase() {
             driver: sqlite3.Database
         });
 
-
-
-        
         // جدول الأسعار
         await db.exec(`
             CREATE TABLE IF NOT EXISTS rates (

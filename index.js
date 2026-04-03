@@ -4,20 +4,8 @@ const path = require('path');
 const config = require('./config.json');
 const { initDatabase, deleteHistory, resetUserLimit, getUserLimit } = require('./utils/database');
 
-// ========== DEBUGGING - معرفة مصدر التوكن ==========
-console.log('=== TOKEN DEBUG INFO ===');
-console.log('process.env.TOKEN exists?', !!process.env.TOKEN);
-console.log('process.env.token exists?', !!process.env.token);
-console.log('config.token exists?', !!config.token);
-console.log('config.token length:', config.token ? config.token.length : 0);
-// =================================================
-
 // ✅ قراءة التوكن من متغيرات البيئة (أولاً) أو من config.json
 const TOKEN = process.env.TOKEN || process.env.token || config.token;
-
-console.log('Final TOKEN exists?', !!TOKEN);
-console.log('Final TOKEN length:', TOKEN ? TOKEN.length : 0);
-console.log('========================');
 
 // ✅ التأكد من وجود التوكن
 if (!TOKEN) {
@@ -74,11 +62,12 @@ async function start() {
             }
         }
 
-        const rest = new REST({ version: '10' }).setToken(TOKEN);
+        const rest = new REST({ version: '10' }).setToken(TOKEN);  // ✅ استخدم TOKEN
 
         client.once('ready', async () => {
             console.log(`✅ Logged in as ${client.user.tag}`);
             
+            // تنظيف الـ intervals القديمة
             if (client.limitIntervals) {
                 for (const [userId, interval] of client.limitIntervals) {
                     clearInterval(interval);
@@ -97,6 +86,7 @@ async function start() {
             }
         });
 
+        // Handle Slash Commands
         client.on('interactionCreate', async interaction => {
             if (interaction.isChatInputCommand()) {
                 try {
@@ -118,6 +108,7 @@ async function start() {
             }
         });
 
+        // Handle Prefix Commands
         client.on('messageCreate', async message => {
             if (message.author.bot) return;
             if (!message.content.startsWith(PREFIX)) return;
@@ -125,6 +116,7 @@ async function start() {
             const args = message.content.slice(PREFIX.length).trim().split(/ +/);
             const commandName = args.shift().toLowerCase();
 
+            // ==================== !helpout ====================
             if (commandName === 'helpout') {
                 const helpEmbed = new EmbedBuilder()
                     .setColor(0x00bfff)
@@ -144,6 +136,7 @@ async function start() {
                 return message.reply({ embeds: [helpEmbed] });
             }
 
+            // ==================== !clearchat ====================
             if (commandName === 'clearchat') {
                 if (!message.member.roles.cache.has(config.roles.owner)) {
                     return message.reply('❌ This command is for Owner only');
@@ -194,6 +187,7 @@ async function start() {
                 }
             }
 
+            // ==================== !deletehistory ====================
             if (commandName === 'deletehistory') {
                 if (!message.member.roles.cache.has(config.roles.owner)) {
                     return message.reply('❌ This command is for Owner only');
@@ -219,6 +213,7 @@ async function start() {
                 }
             }
 
+            // ==================== !resetlimit ====================
             if (commandName === 'resetlimit') {
                 const allowedResetRoles = [
                     '1487214820276043967',
@@ -272,7 +267,7 @@ async function start() {
             }
         });
 
-        client.login(TOKEN);
+        client.login(TOKEN);  // ✅ استخدم TOKEN
     } catch (error) {
         console.error('Error starting bot:', error);
     }
