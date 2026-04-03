@@ -2,7 +2,7 @@ const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } = require('disco
 const fs = require('fs');
 const path = require('path');
 
-// قراءة الكونفيج
+// قراءة الكونفيج من Environment Variables أو ملف
 let config;
 
 if (process.env.CONFIG_JSON) {
@@ -36,6 +36,8 @@ console.log('=== CONFIG CHECK ===');
 console.log('Token:', config.token ? '✅ EXISTS' : '❌ MISSING');
 console.log('ClientId:', config.clientId ? '✅ EXISTS' : '❌ MISSING');
 console.log('GuildId:', config.guildId ? '✅ EXISTS' : '❌ MISSING');
+console.log('Roles.owner:', config.roles?.owner ? '✅ EXISTS' : '❌ MISSING');
+console.log('Roles.worker:', config.roles?.worker ? '✅ EXISTS' : '❌ MISSING');
 console.log('====================');
 
 if (!config.token || !config.clientId || !config.guildId) {
@@ -45,9 +47,14 @@ if (!config.token || !config.clientId || !config.guildId) {
 
 const { initDatabase, deleteHistory, resetUserLimit, getUserLimit } = require('./utils/database');
 
-// ONLY the most basic intents
 const client = new Client({ 
-    intents: [GatewayIntentBits.Guilds] 
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMessages
+    ] 
 });
 
 const PREFIX = '!';
@@ -57,15 +64,12 @@ async function start() {
         await initDatabase();
         console.log('✅ Database ready');
 
-        // Load slash commands
         const commands = [];
         const commandsPath = path.join(__dirname, 'commands');
         
         if (fs.existsSync(commandsPath)) {
             const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
             for (const file of commandFiles) {
-                if (file === 'clearChat.js') continue;
-                
                 try {
                     const command = require(`./commands/${file}`);
                     if (command.data) {
@@ -110,15 +114,10 @@ async function start() {
         client.on('interactionCreate', async interaction => {
             if (interaction.isChatInputCommand()) {
                 try {
-                    const commandPath = path.join(__dirname, 'commands', `${interaction.commandName}.js`);
-                    if (fs.existsSync(commandPath)) {
-                        const command = require(commandPath);
-                        await command.execute(interaction, client);
-                    } else {
-                        await interaction.reply({ content: '❌ Command not found', flags: 64 });
-                    }
+                    const command = require(`./commands/${interaction.commandName}.js`);
+                    await command.execute(interaction, client);
                 } catch (error) {
-                    console.error(`Error executing ${interaction.commandName}:`, error);
+                    console.error(error);
                     await interaction.reply({ content: '❌ Something went wrong', flags: 64 });
                 }
             }
@@ -139,6 +138,8 @@ async function start() {
 
             const args = message.content.slice(PREFIX.length).trim().split(/ +/);
             const commandName = args.shift().toLowerCase();
+
+            console.log(`Prefix command received: ${commandName} from ${message.author.tag}`);
 
             if (commandName === 'helpout') {
                 const helpEmbed = new EmbedBuilder()
