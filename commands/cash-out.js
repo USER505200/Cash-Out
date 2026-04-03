@@ -4,7 +4,7 @@ const { getRate, saveLog, getWorkerByUserId, updateUserLimit, getRemainingTime, 
 const { generateOrderId } = require('../utils/helpers');
 
 // الصور
-const topRightImage = 'https://images-ext-1.discordapp.net/external/SDF8GyN5bNsXkcGlCQxL9rQWqI9WZ04fgAR4fD7htEA/%3Fsize%3D1024/https/cdn.discordapp.com/icons/1487197600456249378/a_819f0d347b5414baf678d1031c21ae43.gif';
+const topRightImage = 'https://cdn.discordapp.com/attachments/1488235109650796786/1489513784853659779/word_1.gif?ex=69d0b150&is=69cf5fd0&hm=8d1e6763112130c8cbdccf01b5c9b535f279a7b20f041a13be61d9e98c12c5a5&';
 const bottomImage = 'https://media.discordapp.net/attachments/1489063780813111539/1489203223985393794/Untitled-1.gif?ex=69cf9014&is=69ce3e94&hm=c790ea2a988c1c3ca6429459028d7ef53308afe7bf54d858f7a6383ae447ffcd&';
 
 // دالة العد التنازلي (كما هي)
