@@ -3,13 +3,12 @@ const config = require('../config.json');
 const { getRate, saveLog, getWorkerByUserId, updateUserLimit, getRemainingTime, isUserLimited } = require('../utils/database');
 const { generateOrderId } = require('../utils/helpers');
 
-// الصور
-const topRightImage = 'https://cdn.discordapp.com/attachments/1488235109650796786/1489513784853659779/word_1.gif?ex=69d0b150&is=69cf5fd0&hm=8d1e6763112130c8cbdccf01b5c9b535f279a7b20f041a13be61d9e98c12c5a5&';
-const bottomImage = 'https://media.discordapp.net/attachments/1489063780813111539/1489203223985393794/Untitled-1.gif?ex=69cf9014&is=69ce3e94&hm=c790ea2a988c1c3ca6429459028d7ef53308afe7bf54d858f7a6383ae447ffcd&';
+// الصور - استخدم روابط Imgur مضمونة
+const topRightImage = 'https://i.imgur.com/5QGk2VU.gif';
+const bottomImage = 'https://i.imgur.com/8K1nZtL.gif';
 
-// دالة العد التنازلي (كما هي)
+// دالة العد التنازلي
 async function startLimitCountdown(client, userId, message, targetDate, totalAmount) {
-    // ... (الكود الخاص بالدالة لم يتغير، وضعه كما هو)
     if (client.limitIntervals && client.limitIntervals.get(userId)) {
         clearInterval(client.limitIntervals.get(userId));
     }
@@ -69,7 +68,6 @@ async function startLimitCountdown(client, userId, message, targetDate, totalAmo
     const interval = setInterval(updateEmbed, 1000);
     client.limitIntervals.set(userId, interval);
 }
-
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -248,7 +246,6 @@ module.exports = {
         }
 
         // ========== آخر عملية (total بالضبط 2000) ==========
-        // هذا هو القسم الذي قمنا بتعديله لمنع تكرار الـ reply
         if (limitResult.isLast) {
             // حساب وقت انتهاء الـ Limit (28 ساعة من الآن)
             const limitedUntil = new Date();
@@ -285,7 +282,6 @@ module.exports = {
             startLimitCountdown(client, interaction.user.id, msg, limitedUntil, limitResult.totalAmount);
             
             // ========== إرسال طلب الـ Approve للـ Owner ==========
-            // لا يوجد أي interaction.reply() هنا!
             let number;
             if (method === 'v-cash') {
                 number = workerData.vcashNumber;
@@ -300,7 +296,7 @@ module.exports = {
             const total = amount * currentRate;
             const orderId = generateOrderId();
 
-            const checkWalletMessage = `\`\`\`diff\n- Check wallet\n\`\`\`\`!w ${interaction.user.id}\`\n\n\`\`\`diff\n- If You Sure\n\`\`\`\`/remove_earnings amount:${amount}m user:${interaction.user.id}\``;
+            const checkWalletMessage = `\`\`\`diff\n- Check wallet\n\`\`\`\`!w ${interaction.user.id}\`\n\n\`\`\`diff\n- If You Sure\n\`\`\`\`/remove_earnings amount:${amount} user:${interaction.user.id}\``;
 
             const embed = new EmbedBuilder()
                 .setColor(0xffa500)
@@ -351,7 +347,6 @@ module.exports = {
                 isLast: true
             });
             
-            // نخرج من الدالة هنا، وهذا يمنع الوصول إلى الـ interaction.reply() الأخير
             return;
         }
 
@@ -374,7 +369,7 @@ module.exports = {
         const total = amount * currentRate;
         const orderId = generateOrderId();
 
-        const checkWalletMessage = `\`\`\`diff\n- Check wallet\n\`\`\`\`!w ${interaction.user.id}\`\n\n\`\`\`diff\n- If You Sure\n\`\`\`\`/remove_earnings amount:${amount}m user:${interaction.user.id}\``;
+        const checkWalletMessage = `\`\`\`diff\n- Check wallet\n\`\`\`\`!w ${interaction.user.id}\`\n\n\`\`\`diff\n- If You Sure\n\`\`\`\`/remove_earnings amount:${amount} user:${interaction.user.id}\``;
 
         const embed = new EmbedBuilder()
             .setColor(0xffa500)
@@ -411,7 +406,6 @@ module.exports = {
         const ownerChannel = await client.channels.fetch(config.channels.approveChannel);
         await ownerChannel.send({ embeds: [embed], components: [row] });
 
-        // هذه هي الـ reply الوحيدة في القسم العادي
         await interaction.reply({ 
             content: `✅ Withdrawal request sent successfully\n📋 Order ID: \`${orderId}\`\n📊 Limit: ${limitResult.totalAmount || amount}/2000`, 
             flags: 64 
