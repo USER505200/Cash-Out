@@ -4,6 +4,40 @@ const path = require('path');
 const config = require('./config.json');
 const { initDatabase, deleteHistory, resetUserLimit, getUserLimit } = require('./utils/database');
 
+// ========== DEBUGGING - معرفة مصدر التوكن ==========
+console.log('=== TOKEN DEBUG INFO ===');
+console.log('process.env.TOKEN exists?', !!process.env.TOKEN);
+console.log('process.env.token exists?', !!process.env.token);
+console.log('config.token exists?', !!config.token);
+console.log('config.token length:', config.token ? config.token.length : 0);
+// =================================================
+
+// ✅ قراءة التوكن من متغيرات البيئة (أولاً) أو من config.json
+const TOKEN = process.env.TOKEN || process.env.token || config.token;
+
+console.log('Final TOKEN exists?', !!TOKEN);
+console.log('Final TOKEN length:', TOKEN ? TOKEN.length : 0);
+console.log('========================');
+
+// ✅ التأكد من وجود التوكن
+if (!TOKEN) {
+    console.error('❌ FATAL ERROR: No token found!');
+    console.error('Please set TOKEN or token environment variable in Railway');
+    process.exit(1);
+}
+console.log('✅ Token loaded successfully');
+
+// ✅ التأكد من وجود مجلد البيانات (للمنصات السحابية مثل Railway)
+const dataDir = process.env.DB_PATH ? path.dirname(process.env.DB_PATH) : null;
+if (dataDir && dataDir !== '.' && !fs.existsSync(dataDir)) {
+    try {
+        fs.mkdirSync(dataDir, { recursive: true });
+        console.log(`✅ Created data directory: ${dataDir}`);
+    } catch (err) {
+        console.log(`⚠️ Could not create ${dataDir}:`, err.message);
+    }
+}
+
 const client = new Client({ 
     intents: [
         GatewayIntentBits.Guilds,
@@ -40,12 +74,11 @@ async function start() {
             }
         }
 
-        const rest = new REST({ version: '10' }).setToken(config.token);
+        const rest = new REST({ version: '10' }).setToken(TOKEN);
 
         client.once('ready', async () => {
             console.log(`✅ Logged in as ${client.user.tag}`);
             
-            // تنظيف الـ intervals القديمة
             if (client.limitIntervals) {
                 for (const [userId, interval] of client.limitIntervals) {
                     clearInterval(interval);
@@ -60,11 +93,10 @@ async function start() {
                 );
                 console.log('✅ Slash commands registered');
             } catch (error) {
-                console.error(error);
+                console.error('Error registering commands:', error);
             }
         });
 
-        // Handle Slash Commands
         client.on('interactionCreate', async interaction => {
             if (interaction.isChatInputCommand()) {
                 try {
@@ -86,7 +118,6 @@ async function start() {
             }
         });
 
-        // Handle Prefix Commands
         client.on('messageCreate', async message => {
             if (message.author.bot) return;
             if (!message.content.startsWith(PREFIX)) return;
@@ -94,7 +125,6 @@ async function start() {
             const args = message.content.slice(PREFIX.length).trim().split(/ +/);
             const commandName = args.shift().toLowerCase();
 
-            // ==================== !helpout ====================
             if (commandName === 'helpout') {
                 const helpEmbed = new EmbedBuilder()
                     .setColor(0x00bfff)
@@ -114,7 +144,6 @@ async function start() {
                 return message.reply({ embeds: [helpEmbed] });
             }
 
-            // ==================== !clearchat ====================
             if (commandName === 'clearchat') {
                 if (!message.member.roles.cache.has(config.roles.owner)) {
                     return message.reply('❌ This command is for Owner only');
@@ -165,7 +194,6 @@ async function start() {
                 }
             }
 
-            // ==================== !deletehistory ====================
             if (commandName === 'deletehistory') {
                 if (!message.member.roles.cache.has(config.roles.owner)) {
                     return message.reply('❌ This command is for Owner only');
@@ -191,13 +219,11 @@ async function start() {
                 }
             }
 
-            // ==================== !resetlimit ====================
             if (commandName === 'resetlimit') {
-                // الرتب المسموح لها
                 const allowedResetRoles = [
-                    '1487214820276043967', // Owner
-                    '1487298785913606317', // Admin
-                    '1487299732215697469'  // Support
+                    '1487214820276043967',
+                    '1487298785913606317',
+                    '1487299732215697469'
                 ];
                 
                 const hasAllowedRole = allowedResetRoles.some(roleId => message.member.roles.cache.has(roleId));
@@ -210,7 +236,6 @@ async function start() {
                     return message.reply('❌ Please mention a user! Usage: `!resetlimit @user`');
                 }
 
-                // جلب معلومات الـ Limit قبل المسح
                 const limitInfo = await getUserLimit(targetUser.id);
                 
                 if (!limitInfo.isLimited && (limitInfo.totalAmount === 0 || limitInfo.totalAmount < 2000)) {
@@ -237,7 +262,6 @@ async function start() {
                     
                     await message.reply({ embeds: [embed] });
                     
-                    // إيقاف الـ interval إذا كان موجود
                     if (client.limitIntervals && client.limitIntervals.has(targetUser.id)) {
                         clearInterval(client.limitIntervals.get(targetUser.id));
                         client.limitIntervals.delete(targetUser.id);
@@ -248,7 +272,7 @@ async function start() {
             }
         });
 
-        client.login(config.token);
+        client.login(TOKEN);
     } catch (error) {
         console.error('Error starting bot:', error);
     }
