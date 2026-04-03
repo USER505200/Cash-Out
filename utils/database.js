@@ -1,38 +1,12 @@
 const sqlite3 = require('sqlite3').verbose();
 const { open } = require('sqlite');
 const path = require('path');
-const fs = require('fs');
 
 let db;
 
 async function initDatabase() {
     try {
-        // ✅ استخدام متغير البيئة للمسار أو المسار الافتراضي
-        let dbPath;
-        
-        if (process.env.DB_PATH) {
-            dbPath = process.env.DB_PATH;
-            console.log(`📁 Using DB_PATH from env: ${dbPath}`);
-        } else {
-            dbPath = path.join(__dirname, '..', 'database.db');
-            console.log(`📁 Using default path: ${dbPath}`);
-        }
-        
-        // ✅ تأكد من وجود المجلد
-        const dbDir = path.dirname(dbPath);
-        if (!fs.existsSync(dbDir)) {
-            fs.mkdirSync(dbDir, { recursive: true });
-            console.log(`📁 Created directory: ${dbDir}`);
-        }
-        
-        // ✅ تحقق من صلاحيات الكتابة
-        try {
-            fs.accessSync(dbDir, fs.constants.W_OK);
-            console.log(`✅ Directory ${dbDir} is writable`);
-        } catch (err) {
-            console.error(`❌ Directory ${dbDir} is NOT writable:`, err);
-            fs.mkdirSync(dbDir, { recursive: true, mode: 0o755 });
-        }
+        const dbPath = path.join(__dirname, '..', 'database.db');
         
         db = await open({
             filename: dbPath,
@@ -71,9 +45,7 @@ async function initDatabase() {
             await db.exec(`ALTER TABLE logs ADD COLUMN isLast BOOLEAN DEFAULT 0`);
             console.log('✅ Added isLast column to logs table');
         } catch (err) {
-            if (!err.message.includes('duplicate column name')) {
-                console.log('isLast column already exists or error:', err.message);
-            }
+            console.log('isLast column already exists or error:', err.message);
         }
 
         // جدول بيانات الـ Workers
@@ -104,7 +76,7 @@ async function initDatabase() {
             await db.run('INSERT INTO rates (vcash, crypto) VALUES (11, 0.185)');
         }
 
-        console.log('✅ Database initialized successfully at:', dbPath);
+        console.log('✅ Database initialized successfully');
         return true;
     } catch (error) {
         console.error('Database error:', error);
@@ -449,6 +421,7 @@ async function updateUserLimit(userId, amount) {
         const currentTotal = limit.totalAmount || 0;
         const newTotal = currentTotal + amount;
         
+        // إذا كان المجموع الجديد أكبر من 2000
         if (newTotal > 2000) {
             return { 
                 success: false, 
@@ -459,7 +432,9 @@ async function updateUserLimit(userId, amount) {
             };
         }
         
+        // إذا كان المجموع الجديد يساوي 2000 بالضبط (آخر عملية)
         if (newTotal === 2000) {
+            // حساب وقت انتهاء الـ Limit (28 ساعة بالضبط من الآن)
             const limitedUntil = new Date();
             limitedUntil.setTime(limitedUntil.getTime() + (28 * 60 * 60 * 1000));
             
@@ -484,6 +459,7 @@ async function updateUserLimit(userId, amount) {
             };
         }
         
+        // أقل من 2000 (عادي)
         await db.run(`
             UPDATE limits 
             SET totalAmount = ?, lastReset = datetime("now") 
@@ -546,6 +522,7 @@ async function activateLimitAfterApproval(userId) {
         const limit = await getUserLimit(userId);
         
         if (limit.totalAmount >= 2000 && !limit.isLimited) {
+            // 28 ساعة بالضبط من الآن
             const limitedUntil = new Date();
             limitedUntil.setTime(limitedUntil.getTime() + (28 * 60 * 60 * 1000));
             
@@ -575,7 +552,10 @@ async function getRemainingTime(userId) {
         
         if (now >= limitedUntil) return null;
         
+        // حساب الفرق بالمللي ثانية
         const diffMs = limitedUntil - now;
+        
+        // تحويل إلى ساعات ودقائق وثواني
         const totalSeconds = Math.floor(diffMs / 1000);
         const hours = Math.floor(totalSeconds / 3600);
         const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -619,6 +599,7 @@ async function isLimitExpired(userId) {
     }
 }
 
+// ==================== الصادرات ====================
 module.exports = {
     initDatabase,
     getRate,
