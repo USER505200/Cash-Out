@@ -27,7 +27,11 @@ module.exports = {
             return interaction.reply({ content: `❌ You can only use /history-cash-out in <#${workerData.channelId}>`, flags: 64 });
         }
 
-        const transactions = await getCashoutsByUser(interaction.user.id);
+        // ✅ جلب جميع العمليات
+        let allTransactions = await getCashoutsByUser(interaction.user.id);
+        
+        // ✅ تصفية العمليات: إزالة الـ cancelled
+        const transactions = allTransactions.filter(tx => tx.status !== 'cancelled');
 
         if (!transactions || transactions.length === 0) {
             const noDataEmbed = new EmbedBuilder()
@@ -65,11 +69,10 @@ async function sendHistoryPage(interaction, client, userId, page) {
     const pageTransactions = transactions.slice(start, end);
     const totalPages = Math.ceil(transactions.length / itemsPerPage);
 
-    // Calculate stats
+    // Calculate stats (only approved and pending)
     let totalAmount = 0;
     let totalWithFees = 0;
     let approvedCount = 0;
-    let cancelledCount = 0;
     let pendingCount = 0;
     let totalVCash = 0;
     let totalCrypto = 0;
@@ -89,14 +92,12 @@ async function sendHistoryPage(interaction, client, userId, page) {
                 totalCrypto += tx.amount;
                 totalCryptoWithFees += tx.total || 0;
             }
-        } else if (tx.status === 'cancelled') {
-            cancelledCount++;
         } else if (tx.status === 'pending') {
             pendingCount++;
         }
     }
 
-    // Stats Embed - بدون "with Fees"
+    // Stats Embed
     const statsEmbed = new EmbedBuilder()
         .setColor(0x00bfff)
         .setTitle(`📊 Your Cashout Statistics`)
@@ -104,7 +105,6 @@ async function sendHistoryPage(interaction, client, userId, page) {
         .addFields(
             { name: '💰 Total Transactions', value: String(transactions.length), inline: true },
             { name: '✅ Approved', value: String(approvedCount), inline: true },
-            { name: '❌ Cancelled', value: String(cancelledCount), inline: true },
             { name: '⏳ Pending', value: String(pendingCount), inline: true },
             { name: '💵 Amount', value: `${totalAmount.toLocaleString()} EGP`, inline: true },
             { name: '💸 Total', value: `${totalWithFees.toFixed(2).toLocaleString()} EGP`, inline: true },
@@ -123,7 +123,7 @@ async function sendHistoryPage(interaction, client, userId, page) {
         transactionsEmbed.setDescription('No transactions on this page.');
     } else {
         for (const tx of pageTransactions) {
-            const statusEmoji = tx.status === 'approved' ? '✅' : (tx.status === 'cancelled' ? '❌' : '⏳');
+            const statusEmoji = tx.status === 'approved' ? '✅' : '⏳';
             const methodName = tx.method === 'v-cash' ? 'V-Cash' : 'Crypto';
             
             let valueText = `**Amount:** ${tx.amount.toLocaleString()} EGP\n**Method:** ${methodName}\n**Rate:** ${tx.rate} ${tx.method === 'v-cash' ? 'EGP' : 'USD'}`;
@@ -142,7 +142,7 @@ async function sendHistoryPage(interaction, client, userId, page) {
         }
     }
 
-    // Create buttons with page number embedded
+    // Create buttons
     const row = new ActionRowBuilder();
     
     if (page > 0) {
@@ -172,7 +172,6 @@ async function sendHistoryPage(interaction, client, userId, page) {
 
     const components = row.components.length > 0 ? [row] : [];
 
-    // Save current page in cache
     client.historyCache.set(userId, { transactions, currentPage: page });
 
     if (interaction.replied) {
@@ -191,13 +190,11 @@ async function handleHistoryButtons(interaction, client) {
     const action = parts[1];
     const userId = parts[2];
     
-    // Extract page number if exists (for prev/next)
     let targetPage = null;
     if (parts.length > 3) {
         targetPage = parseInt(parts[3]);
     }
 
-    // Check if the user is the owner of the session
     if (interaction.user.id !== userId) {
         await interaction.reply({ content: '❌ You cannot control this menu.', ephemeral: true });
         return true;
@@ -218,7 +215,9 @@ async function handleHistoryButtons(interaction, client) {
         currentPage = targetPage;
     } else if (action === 'refresh') {
         const { getCashoutsByUser } = require('../utils/database');
-        transactions = await getCashoutsByUser(userId);
+        let allTransactions = await getCashoutsByUser(userId);
+        // ✅ تصفية الـ cancelled عند التحديث
+        transactions = allTransactions.filter(tx => tx.status !== 'cancelled');
         currentPage = 0;
         client.historyCache.set(userId, { transactions, currentPage });
         await sendHistoryPage(interaction, client, userId, currentPage);
@@ -228,10 +227,7 @@ async function handleHistoryButtons(interaction, client) {
         return true;
     }
 
-    // Update cache
     client.historyCache.set(userId, { transactions, currentPage });
-    
-    // Send the updated page
     await sendHistoryPage(interaction, client, userId, currentPage);
     return true;
 }
