@@ -1,8 +1,6 @@
 const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
 const config = require('../config.json');
-const { getWorkerByUserId, updateWorker } = require('../utils/mongodb');
-
-
+const { getWorkerByUserId, updateWorker } = require('../utils/database');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -55,14 +53,10 @@ module.exports = {
 
         await interaction.showModal(modal);
 
-        // Handle modal submit
         const filter = (i) => i.customId === 'editDataModal';
         
         try {
-            const modalInteraction = await interaction.awaitModalSubmit({ 
-                filter, 
-                time: 300000
-            });
+            const modalInteraction = await interaction.awaitModalSubmit({ filter, time: 300000 });
             
             const workerId = modalInteraction.fields.getTextInputValue('workerId');
             const newChannelId = modalInteraction.fields.getTextInputValue('channelId') || undefined;
@@ -89,7 +83,6 @@ module.exports = {
             }
         } catch (error) {
             console.error('Modal submit error:', error);
-            // Interaction expired or user cancelled - don't try to reply
         }
     }
 };

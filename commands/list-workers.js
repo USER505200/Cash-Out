@@ -1,7 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const config = require('../config.json');
-const { getAllWorkers } = require('../utils/mongodb');
-
+const { getAllWorkers } = require('../utils/database');
 
 const itemsPerPage = 5;
 
@@ -11,7 +10,6 @@ module.exports = {
         .setDescription('List all registered workers (Owner/Admin/Support)'),
 
     async execute(interaction, client) {
-        // الرتب المسموح لها
         const allowedRoles = [
             '1487214820276043967', // Owner
             '1487298785913606317', // Admin
@@ -113,7 +111,6 @@ async function sendWorkersPage(interaction, client, userId, page) {
     }
 }
 
-// Handle button interactions for workers list
 async function handleWorkersButtons(interaction, client) {
     if (!interaction.customId.startsWith('listworkers_')) return false;
 
@@ -123,7 +120,6 @@ async function handleWorkersButtons(interaction, client) {
     const userId = parts[2];
     const targetPage = parseInt(parts[3]);
 
-    // Check if user owns this session
     if (interaction.user.id !== userId) {
         await interaction.reply({ content: '❌ You cannot control this menu.', ephemeral: true });
         return true;
@@ -153,10 +149,7 @@ async function handleWorkersButtons(interaction, client) {
         return true;
     }
 
-    // Update cache
     client.workersCache.set(userId, { workers, currentPage });
-    
-    // Send updated page
     await sendWorkersPage(interaction, client, userId, currentPage);
     return true;
 }

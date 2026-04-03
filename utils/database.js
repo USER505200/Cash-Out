@@ -6,14 +6,13 @@ let db;
 
 async function initDatabase() {
     try {
-        const dbPath = path.join(__dirname, '..', 'database.db');
+        const dbPath = process.env.DB_PATH || path.join(__dirname, '..', 'database.db');
         
         db = await open({
             filename: dbPath,
             driver: sqlite3.Database
         });
 
-        // جدول الأسعار
         await db.exec(`
             CREATE TABLE IF NOT EXISTS rates (
                 id INTEGER PRIMARY KEY,
@@ -22,7 +21,6 @@ async function initDatabase() {
             )
         `);
 
-        // جدول سجل العمليات
         await db.exec(`
             CREATE TABLE IF NOT EXISTS logs (
                 orderId TEXT PRIMARY KEY,
@@ -36,19 +34,11 @@ async function initDatabase() {
                 total REAL,
                 status TEXT,
                 processedBy TEXT,
+                isLast BOOLEAN DEFAULT 0,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         `);
 
-        // إضافة عمود isLast إذا لم يكن موجود
-        try {
-            await db.exec(`ALTER TABLE logs ADD COLUMN isLast BOOLEAN DEFAULT 0`);
-            console.log('✅ Added isLast column to logs table');
-        } catch (err) {
-            console.log('isLast column already exists or error:', err.message);
-        }
-
-        // جدول بيانات الـ Workers
         await db.exec(`
             CREATE TABLE IF NOT EXISTS workers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,7 +50,6 @@ async function initDatabase() {
             )
         `);
 
-        // جدول الـ Limits
         await db.exec(`
             CREATE TABLE IF NOT EXISTS limits (
                 userId TEXT PRIMARY KEY,
@@ -106,7 +95,7 @@ async function setRate(method, value) {
     }
 }
 
-// ==================== دوال الـ Workers ====================
+// ==================== دوال العمال ====================
 async function addWorker(workerId, channelId, vcashNumber, cryptoAddress) {
     try {
         const existing = await db.get('SELECT * FROM workers WHERE workerId = ?', workerId);
@@ -203,7 +192,7 @@ async function deleteWorker(workerId) {
     }
 }
 
-// ==================== دوال اللوجات ====================
+// ==================== دوال السجلات ====================
 async function saveLog(data) {
     try {
         await db.run(`
@@ -241,23 +230,13 @@ async function getAllLogs() {
     }
 }
 
-// ==================== دوال الإحصائيات والتقارير ====================
+// ==================== دوال الإحصائيات ====================
 async function getAllCashouts() {
-    try {
-        return await db.all('SELECT * FROM logs ORDER BY timestamp DESC');
-    } catch (error) {
-        console.error('getAllCashouts error:', error);
-        return [];
-    }
+    return await getAllLogs();
 }
 
 async function getCashoutsByUser(userId) {
-    try {
-        return await db.all('SELECT * FROM logs WHERE userId = ? ORDER BY timestamp DESC', userId);
-    } catch (error) {
-        console.error('getCashoutsByUser error:', error);
-        return [];
-    }
+    return await getLogsByUser(userId);
 }
 
 async function getCashoutsByStatus(status) {
@@ -271,10 +250,7 @@ async function getCashoutsByStatus(status) {
 
 async function getCashoutsByUserAndStatus(userId, status) {
     try {
-        return await db.all(
-            'SELECT * FROM logs WHERE userId = ? AND status = ? ORDER BY timestamp DESC',
-            userId, status
-        );
+        return await db.all('SELECT * FROM logs WHERE userId = ? AND status = ? ORDER BY timestamp DESC', userId, status);
     } catch (error) {
         console.error('getCashoutsByUserAndStatus error:', error);
         return [];
@@ -421,7 +397,6 @@ async function updateUserLimit(userId, amount) {
         const currentTotal = limit.totalAmount || 0;
         const newTotal = currentTotal + amount;
         
-        // إذا كان المجموع الجديد أكبر من 2000
         if (newTotal > 2000) {
             return { 
                 success: false, 
@@ -432,9 +407,7 @@ async function updateUserLimit(userId, amount) {
             };
         }
         
-        // إذا كان المجموع الجديد يساوي 2000 بالضبط (آخر عملية)
         if (newTotal === 2000) {
-            // حساب وقت انتهاء الـ Limit (28 ساعة بالضبط من الآن)
             const limitedUntil = new Date();
             limitedUntil.setTime(limitedUntil.getTime() + (28 * 60 * 60 * 1000));
             
@@ -447,8 +420,6 @@ async function updateUserLimit(userId, amount) {
                 WHERE userId = ?
             `, newTotal, limitedUntil.toISOString(), userId);
             
-            console.log(`✅ User ${userId} reached 2000 limit, limited until ${limitedUntil.toISOString()}`);
-            
             return { 
                 success: true, 
                 message: `Last withdrawal! Total: ${newTotal}/2000. You are now limited for 28 hours.`,
@@ -459,7 +430,6 @@ async function updateUserLimit(userId, amount) {
             };
         }
         
-        // أقل من 2000 (عادي)
         await db.run(`
             UPDATE limits 
             SET totalAmount = ?, lastReset = datetime("now") 
@@ -482,34 +452,17 @@ async function updateUserLimit(userId, amount) {
 async function isUserLimited(userId) {
     try {
         const limit = await getUserLimit(userId);
-        
         if (!limit.isLimited) return { limited: false };
         
         if (limit.limitedUntil) {
             const now = new Date();
-            const limitedUntil = new Date(limit.limitedUntil);
-            
-            if (now >= limitedUntil) {
-                await db.run(`
-                    UPDATE limits 
-                    SET totalAmount = 0, 
-                        isLimited = 0, 
-                        limitedUntil = NULL, 
-                        lastReset = datetime("now") 
-                    WHERE userId = ?
-                `, userId);
+            if (now >= new Date(limit.limitedUntil)) {
+                await db.run('UPDATE limits SET totalAmount = 0, isLimited = 0, limitedUntil = NULL, lastReset = datetime("now") WHERE userId = ?', userId);
                 return { limited: false };
             }
-            
             const remainingTime = await getRemainingTime(userId);
-            return { 
-                limited: true, 
-                limitedUntil: limit.limitedUntil,
-                remainingTime: remainingTime,
-                totalAmount: limit.totalAmount
-            };
+            return { limited: true, limitedUntil: limit.limitedUntil, remainingTime, totalAmount: limit.totalAmount };
         }
-        
         return { limited: true, totalAmount: limit.totalAmount };
     } catch (error) {
         console.error('isUserLimited error:', error);
@@ -520,21 +473,12 @@ async function isUserLimited(userId) {
 async function activateLimitAfterApproval(userId) {
     try {
         const limit = await getUserLimit(userId);
-        
         if (limit.totalAmount >= 2000 && !limit.isLimited) {
-            // 28 ساعة بالضبط من الآن
             const limitedUntil = new Date();
             limitedUntil.setTime(limitedUntil.getTime() + (28 * 60 * 60 * 1000));
-            
-            await db.run(`
-                UPDATE limits 
-                SET isLimited = 1, limitedUntil = ? 
-                WHERE userId = ?
-            `, limitedUntil.toISOString(), userId);
-            
+            await db.run('UPDATE limits SET isLimited = 1, limitedUntil = ? WHERE userId = ?', limitedUntil.toISOString(), userId);
             return { success: true, message: 'Limit activated for 28 hours', limitedUntil };
         }
-        
         return { success: false, message: 'Limit not reached yet' };
     } catch (error) {
         console.error('activateLimitAfterApproval error:', error);
@@ -549,25 +493,15 @@ async function getRemainingTime(userId) {
         
         const now = new Date();
         const limitedUntil = new Date(limit.limitedUntil);
-        
         if (now >= limitedUntil) return null;
         
-        // حساب الفرق بالمللي ثانية
         const diffMs = limitedUntil - now;
-        
-        // تحويل إلى ساعات ودقائق وثواني
         const totalSeconds = Math.floor(diffMs / 1000);
         const hours = Math.floor(totalSeconds / 3600);
         const minutes = Math.floor((totalSeconds % 3600) / 60);
         const seconds = totalSeconds % 60;
         
-        return {
-            hours: hours,
-            minutes: minutes,
-            seconds: seconds,
-            totalSeconds: totalSeconds,
-            until: limitedUntil
-        };
+        return { hours, minutes, seconds, totalSeconds, until: limitedUntil };
     } catch (error) {
         console.error('getRemainingTime error:', error);
         return null;
@@ -588,18 +522,13 @@ async function isLimitExpired(userId) {
     try {
         const limit = await db.get('SELECT limitedUntil FROM limits WHERE userId = ?', userId);
         if (!limit || !limit.limitedUntil) return true;
-        
-        const now = new Date();
-        const limitedUntil = new Date(limit.limitedUntil);
-        
-        return now >= limitedUntil;
+        return new Date() >= new Date(limit.limitedUntil);
     } catch (error) {
         console.error('isLimitExpired error:', error);
         return true;
     }
 }
 
-// ==================== الصادرات ====================
 module.exports = {
     initDatabase,
     getRate,

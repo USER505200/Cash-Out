@@ -1,9 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const config = require('../config.json');
-const { setRate } = require('../utils/mongodb');
+const { setRate } = require('../utils/database');
 
-
-// الرتب المسموح لها بتغيير السعر
 const allowedRateRoles = [
     '1487214820276043967', // Owner
     '1487298785913606317', // Admin
@@ -28,7 +26,6 @@ module.exports = {
                 .setRequired(true)),
 
     async execute(interaction, client) {
-        // Check if user has allowed role
         const hasAllowedRole = allowedRateRoles.some(roleId => interaction.member.roles.cache.has(roleId));
         if (!hasAllowedRole) {
             return interaction.reply({ content: '❌ This command is for Owner, Admin, or Support only', flags: 64 });
@@ -43,7 +40,6 @@ module.exports = {
 
         await setRate(method, newRate);
 
-        // Update channel name based on method
         try {
             if (method === 'vcash') {
                 const channel = await client.channels.fetch('1488199657426386954');
@@ -60,7 +56,6 @@ module.exports = {
             console.log('Could not update channel name:', err);
         }
 
-        // Get role name for footer
         let roleName = 'Unknown';
         if (interaction.member.roles.cache.has('1487214820276043967')) roleName = 'Owner';
         else if (interaction.member.roles.cache.has('1487298785913606317')) roleName = 'Admin';

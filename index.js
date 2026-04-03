@@ -2,7 +2,7 @@ const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } = require('disco
 const fs = require('fs');
 const path = require('path');
 const config = require('./config.json');
-const { initDatabase, deleteHistory, resetUserLimit, getUserLimit } = require('./utils/mongodb');
+const { initDatabase, deleteHistory, resetUserLimit, getUserLimit } = require('./utils/database');
 
 const client = new Client({ 
     intents: [
@@ -19,9 +19,8 @@ const PREFIX = '!';
 async function start() {
     try {
         await initDatabase();
-        console.log('✅ Database ready (MongoDB)');
+        console.log('✅ Database ready');
 
-        // Slash commands
         const commands = [];
         const commandsPath = path.join(__dirname, 'commands');
         
@@ -63,7 +62,6 @@ async function start() {
             }
         });
 
-        // Handle Slash Commands
         client.on('interactionCreate', async interaction => {
             if (interaction.isChatInputCommand()) {
                 try {
@@ -85,7 +83,6 @@ async function start() {
             }
         });
 
-        // Handle Prefix Commands
         client.on('messageCreate', async message => {
             if (message.author.bot) return;
             if (!message.content.startsWith(PREFIX)) return;
