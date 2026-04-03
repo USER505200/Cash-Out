@@ -2,13 +2,11 @@ const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } = require('disco
 const fs = require('fs');
 const path = require('path');
 
-// قراءة الكونفيج من Environment Variables أو ملف
 let config;
 
 if (process.env.CONFIG_JSON) {
     try {
         config = JSON.parse(process.env.CONFIG_JSON);
-        console.log('✅ Config loaded from CONFIG_JSON');
     } catch (e) {
         console.error('Failed to parse CONFIG_JSON:', e.message);
         process.exit(1);
@@ -32,29 +30,20 @@ if (process.env.CONFIG_JSON) {
     };
 }
 
-console.log('=== CONFIG CHECK ===');
-console.log('Token:', config.token ? '✅ EXISTS' : '❌ MISSING');
-console.log('ClientId:', config.clientId ? '✅ EXISTS' : '❌ MISSING');
-console.log('GuildId:', config.guildId ? '✅ EXISTS' : '❌ MISSING');
-console.log('Roles.owner:', config.roles?.owner ? '✅ EXISTS' : '❌ MISSING');
-console.log('Roles.worker:', config.roles?.worker ? '✅ EXISTS' : '❌ MISSING');
-console.log('====================');
+console.log('Token:', config.token ? '✅' : '❌');
+console.log('ClientId:', config.clientId ? '✅' : '❌');
+console.log('GuildId:', config.guildId ? '✅' : '❌');
 
 if (!config.token || !config.clientId || !config.guildId) {
-    console.error('❌ Missing required configuration!');
+    console.error('❌ Missing config!');
     process.exit(1);
 }
 
 const { initDatabase, deleteHistory, resetUserLimit, getUserLimit } = require('./utils/database');
 
+// أقل Intents ممكنة - فقط الأساسيات
 const client = new Client({ 
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.DirectMessages,
-        GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMessages
-    ] 
+    intents: [GatewayIntentBits.Guilds] 
 });
 
 const PREFIX = '!';
@@ -74,10 +63,10 @@ async function start() {
                     const command = require(`./commands/${file}`);
                     if (command.data) {
                         commands.push(command.data.toJSON());
-                        console.log(`✅ Loaded command: ${file}`);
+                        console.log(`✅ Loaded: ${file}`);
                     }
                 } catch (err) {
-                    console.log(`⚠️ Failed to load command ${file}:`, err.message);
+                    console.log(`⚠️ ${file}:`, err.message);
                 }
             }
         }
@@ -87,27 +76,14 @@ async function start() {
         client.once('ready', async () => {
             console.log(`✅ Logged in as ${client.user.tag}`);
             
-            if (client.limitIntervals) {
-                for (const [userId, interval] of client.limitIntervals) {
-                    clearInterval(interval);
-                }
-                client.limitIntervals.clear();
-            }
-
             try {
-                await rest.put(
-                    Routes.applicationGuildCommands(config.clientId, config.guildId),
-                    { body: [] }
-                );
-                console.log('✅ Cleared old guild commands');
-                
                 await rest.put(
                     Routes.applicationGuildCommands(config.clientId, config.guildId),
                     { body: commands }
                 );
-                console.log(`✅ Registered ${commands.length} slash commands`);
+                console.log(`✅ Registered ${commands.length} commands`);
             } catch (error) {
-                console.error('Error registering commands:', error);
+                console.error('Register error:', error);
             }
         });
 
@@ -118,7 +94,7 @@ async function start() {
                     await command.execute(interaction, client);
                 } catch (error) {
                     console.error(error);
-                    await interaction.reply({ content: '❌ Something went wrong', flags: 64 });
+                    await interaction.reply({ content: '❌ Error', flags: 64 });
                 }
             }
 
@@ -127,7 +103,7 @@ async function start() {
                     const buttonHandler = require('./handlers/buttonHandler');
                     await buttonHandler.handle(interaction, client);
                 } catch (error) {
-                    console.error('Button handler error:', error);
+                    console.error('Button error:', error);
                 }
             }
         });
@@ -139,22 +115,18 @@ async function start() {
             const args = message.content.slice(PREFIX.length).trim().split(/ +/);
             const commandName = args.shift().toLowerCase();
 
-            console.log(`Prefix command received: ${commandName} from ${message.author.tag}`);
-
             if (commandName === 'helpout') {
                 const helpEmbed = new EmbedBuilder()
                     .setColor(0x00bfff)
-                    .setTitle('📋 Bot Prefix Commands')
-                    .setDescription('Here are all available prefix commands:')
-                    .setThumbnail(client.user.displayAvatarURL())
+                    .setTitle('📋 Commands')
+                    .setDescription('Prefix commands:')
                     .addFields(
-                        { name: '!clearchat @user', value: 'Clear all bot messages from DM with a specific user (Owner only)', inline: false },
-                        { name: '!deletehistory @user', value: 'Delete transaction history for a specific user (Owner only)', inline: false },
-                        { name: '!deletehistory all', value: 'Delete ALL transaction history (Owner only)', inline: false },
-                        { name: '!resetlimit @user', value: 'Reset withdrawal limit for a specific user (Owner/Admin/Support)', inline: false },
-                        { name: '!helpout', value: 'Show this help message', inline: false }
+                        { name: '!helpout', value: 'Show this help', inline: true },
+                        { name: '!clearchat @user', value: 'Clear DM (Owner)', inline: true },
+                        { name: '!deletehistory @user/all', value: 'Delete history (Owner)', inline: true },
+                        { name: '!resetlimit @user', value: 'Reset limit (Owner/Admin/Support)', inline: true }
                     )
-                    .setFooter({ text: 'Use / for slash commands like /cash-out, /rate, /view-cashouts, /history-cash-out' })
+                    .setFooter({ text: 'Use / for slash commands' })
                     .setTimestamp();
 
                 return message.reply({ embeds: [helpEmbed] });
@@ -162,103 +134,64 @@ async function start() {
 
             if (commandName === 'clearchat') {
                 if (!message.member.roles.cache.has(config.roles.owner)) {
-                    return message.reply('❌ This command is for Owner only');
+                    return message.reply('❌ Owner only');
                 }
 
                 const targetUser = message.mentions.users.first();
-                if (!targetUser) {
-                    return message.reply('❌ Please mention a user! Usage: `!clearchat @user`');
-                }
+                if (!targetUser) return message.reply('❌ Mention a user');
 
-                await message.reply(`🔄 Clearing ALL bot messages from DM with ${targetUser.tag}...`);
-
-                let deletedCount = 0;
-                let hasMore = true;
+                await message.reply(`🔄 Clearing DM with ${targetUser.tag}...`);
 
                 try {
                     const dmChannel = await targetUser.createDM();
+                    const messages = await dmChannel.messages.fetch({ limit: 100 });
+                    const botMessages = messages.filter(msg => msg.author.id === client.user.id);
                     
-                    while (hasMore) {
-                        const messages = await dmChannel.messages.fetch({ limit: 100 });
-                        
-                        if (messages.size === 0) {
-                            hasMore = false;
-                            break;
-                        }
-                        
-                        const botMessages = messages.filter(msg => msg.author.id === client.user.id);
-                        
-                        if (botMessages.size === 0) {
-                            if (messages.size < 100) hasMore = false;
-                            continue;
-                        }
-                        
-                        for (const msg of botMessages.values()) {
-                            await msg.delete().catch(() => {});
-                            deletedCount++;
-                            await new Promise(resolve => setTimeout(resolve, 500));
-                        }
-                        
-                        if (messages.size < 100) hasMore = false;
-                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    let deleted = 0;
+                    for (const msg of botMessages.values()) {
+                        await msg.delete().catch(() => {});
+                        deleted++;
                     }
                     
-                    await message.reply(`✅ Deleted **${deletedCount}** messages from DM with ${targetUser.tag}`);
+                    await message.reply(`✅ Deleted ${deleted} messages`);
                 } catch (error) {
-                    console.error(error);
                     await message.reply(`❌ Failed: ${error.message}`);
                 }
             }
 
             if (commandName === 'deletehistory') {
                 if (!message.member.roles.cache.has(config.roles.owner)) {
-                    return message.reply('❌ This command is for Owner only');
+                    return message.reply('❌ Owner only');
                 }
 
                 const target = args[0];
-                if (!target) {
-                    return message.reply('❌ Please specify a user (@mention) or "all"\nUsage: `!deletehistory @user` or `!deletehistory all`');
-                }
+                if (!target) return message.reply('❌ @user or "all"');
 
                 if (target === 'all') {
-                    await message.reply('🔄 Deleting ALL transaction history...');
                     const result = await deleteHistory('all');
                     await message.reply(`✅ ${result.message}`);
                 } else {
                     const targetUser = message.mentions.users.first();
-                    if (!targetUser) {
-                        return message.reply('❌ Please mention a valid user!\nUsage: `!deletehistory @user`');
-                    }
-                    await message.reply(`🔄 Deleting history for ${targetUser.tag}...`);
+                    if (!targetUser) return message.reply('❌ Mention a user');
                     const result = await deleteHistory(targetUser.id);
                     await message.reply(`✅ ${result.message}`);
                 }
             }
 
             if (commandName === 'resetlimit') {
-                const allowedResetRoles = [
-                    '1487214820276043967',
-                    '1487298785913606317',
-                    '1487299732215697469'
-                ];
-                
-                const hasAllowedRole = allowedResetRoles.some(roleId => message.member.roles.cache.has(roleId));
-                if (!hasAllowedRole) {
-                    return message.reply('❌ This command is for Owner, Admin, or Support only');
+                const allowed = [config.roles.owner, '1487298785913606317', '1487299732215697469'];
+                if (!allowed.some(r => message.member.roles.cache.has(r))) {
+                    return message.reply('❌ Owner/Admin/Support only');
                 }
 
                 const targetUser = message.mentions.users.first();
-                if (!targetUser) {
-                    return message.reply('❌ Please mention a user! Usage: `!resetlimit @user`');
-                }
+                if (!targetUser) return message.reply('❌ Mention a user');
 
                 const limitInfo = await getUserLimit(targetUser.id);
                 
-                if (!limitInfo.isLimited && (limitInfo.totalAmount === 0 || limitInfo.totalAmount < 2000)) {
-                    return message.reply(`✅ User ${targetUser.tag} does not have an active limit. Current total: ${limitInfo.totalAmount || 0}/2000`);
+                if (!limitInfo.isLimited && limitInfo.totalAmount < 2000) {
+                    return message.reply(`✅ Not limited. Total: ${limitInfo.totalAmount || 0}/2000`);
                 }
-
-                await message.reply(`🔄 Resetting withdrawal limit for ${targetUser.tag}...`);
 
                 const result = await resetUserLimit(targetUser.id);
                 
@@ -266,31 +199,23 @@ async function start() {
                     const embed = new EmbedBuilder()
                         .setColor(0x00ff00)
                         .setTitle('✅ Limit Reset')
-                        .setDescription(`Withdrawal limit has been reset for ${targetUser.tag}`)
+                        .setDescription(`Reset for ${targetUser.tag}`)
                         .addFields(
-                            { name: '👤 User', value: `${targetUser}`, inline: true },
-                            { name: '📊 Previous Total', value: `${limitInfo.totalAmount || 0}/2000`, inline: true },
-                            { name: '🔄 Reset By', value: message.author.tag, inline: true },
-                            { name: '📅 Reset Time', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false }
+                            { name: 'Previous', value: `${limitInfo.totalAmount || 0}/2000`, inline: true },
+                            { name: 'Reset By', value: message.author.tag, inline: true }
                         )
-                        .setThumbnail(targetUser.displayAvatarURL())
                         .setTimestamp();
                     
                     await message.reply({ embeds: [embed] });
-                    
-                    if (client.limitIntervals && client.limitIntervals.has(targetUser.id)) {
-                        clearInterval(client.limitIntervals.get(targetUser.id));
-                        client.limitIntervals.delete(targetUser.id);
-                    }
                 } else {
-                    await message.reply(`❌ Failed to reset limit: ${result.message}`);
+                    await message.reply(`❌ ${result.message}`);
                 }
             }
         });
 
         client.login(config.token);
     } catch (error) {
-        console.error('Error starting bot:', error);
+        console.error('Start error:', error);
     }
 }
 
