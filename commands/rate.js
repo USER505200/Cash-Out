@@ -11,7 +11,7 @@ const allowedRateRoles = [
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('rate')
+        .setName('rate-cash-out')
         .setDescription('Change V-Cash or Crypto rate (Owner/Admin/Support only)')
         .addStringOption(option =>
             option.setName('method')
