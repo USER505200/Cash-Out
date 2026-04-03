@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const config = require('../config.json');
-const { setRate } = require('../utils/database');
+const { setRate } = require('../utils/mongodb');
+
 
 // الرتب المسموح لها بتغيير السعر
 const allowedRateRoles = [

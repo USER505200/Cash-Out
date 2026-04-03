@@ -1,6 +1,8 @@
 const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
 const config = require('../config.json');
-const { getWorkerByUserId, updateWorker } = require('../utils/database');
+const { getWorkerByUserId, updateWorker } = require('../utils/mongodb');
+
+
 
 module.exports = {
     data: new SlashCommandBuilder()

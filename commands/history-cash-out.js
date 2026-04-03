@@ -1,6 +1,8 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const config = require('../config.json');
-const { getCashoutsByUser, getWorkerByUserId } = require('../utils/database');
+const { getCashoutsByUser, getWorkerByUserId } = require('../utils/mongodb');
+
+
 
 const itemsPerPage = 10;
 
