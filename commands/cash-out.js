@@ -13,6 +13,7 @@ async function startLimitCountdown(client, userId, message, targetDate, totalAmo
         clearInterval(client.limitIntervals.get(userId));
     }
     if (!client.limitIntervals) client.limitIntervals = new Map();
+    if (!client.limitMessages) client.limitMessages = new Map();
     
     const updateEmbed = async () => {
         const now = new Date();
@@ -95,6 +96,10 @@ module.exports = {
             return interaction.reply({ content: '❌ This command is only for Workers', flags: 64 });
         }
 
+        // Initialize limit tracking if not exists
+        if (!client.limitIntervals) client.limitIntervals = new Map();
+        if (!client.limitMessages) client.limitMessages = new Map();
+
         // ========== فحص إذا كان المستخدم محدود حالياً ==========
         const limitedCheck = await isUserLimited(interaction.user.id);
         
@@ -116,7 +121,6 @@ module.exports = {
                 .setFooter({ text: 'GRINDORA SERVICES | Withdrawal limit: 2000 per 28 hours' })
                 .setTimestamp();
 
-            if (!client.limitMessages) client.limitMessages = new Map();
             const existingMsg = client.limitMessages.get(interaction.user.id);
             
             if (existingMsg) {
@@ -163,7 +167,6 @@ module.exports = {
             const remainingTime = await getRemainingTime(interaction.user.id);
             const targetDate = remainingTime ? remainingTime.until : new Date();
             
-            if (!client.limitMessages) client.limitMessages = new Map();
             const existingMessage = client.limitMessages.get(interaction.user.id);
             
             if (existingMessage) {
@@ -293,7 +296,6 @@ module.exports = {
             embed.addFields({ name: '📊 Limit Status', value: `${limitResult.totalAmount || amount}/2000 (${limitResult.remaining || 2000 - amount} remaining)`, inline: false });
         }
 
-        // استخدام stringify آمن للأرقام الكبيرة
         const approveButton = new ButtonBuilder()
             .setCustomId(`approve_${orderId}_${interaction.user.id}_${amount}_${method}_${String(number).replace(/_/g, '-')}_${currentRate}_${total}_${interaction.channel.id}`)
             .setLabel('Approve')
