@@ -1,12 +1,39 @@
 const sqlite3 = require('sqlite3').verbose();
 const { open } = require('sqlite');
 const path = require('path');
+const fs = require('fs');
 
 let db;
 
 async function initDatabase() {
     try {
-        const dbPath = path.join(__dirname, '..', 'database.db');
+        // ✅ استخدام متغير البيئة للمسار أو المسار الافتراضي
+        let dbPath;
+        
+        if (process.env.DB_PATH) {
+            dbPath = process.env.DB_PATH;
+            console.log(`📁 Using DB_PATH from env: ${dbPath}`);
+        } else {
+            dbPath = path.join(__dirname, '..', 'database.db');
+            console.log(`📁 Using default path: ${dbPath}`);
+        }
+        
+        // ✅ تأكد من وجود المجلد
+        const dbDir = path.dirname(dbPath);
+        if (!fs.existsSync(dbDir)) {
+            fs.mkdirSync(dbDir, { recursive: true });
+            console.log(`📁 Created directory: ${dbDir}`);
+        }
+        
+        // ✅ تحقق من صلاحيات الكتابة
+        try {
+            fs.accessSync(dbDir, fs.constants.W_OK);
+            console.log(`✅ Directory ${dbDir} is writable`);
+        } catch (err) {
+            console.error(`❌ Directory ${dbDir} is NOT writable:`, err);
+            // محاولة إنشاء المجلد مرة أخرى بصلاحيات مختلفة
+            fs.mkdirSync(dbDir, { recursive: true, mode: 0o755 });
+        }
         
         db = await open({
             filename: dbPath,
@@ -45,7 +72,10 @@ async function initDatabase() {
             await db.exec(`ALTER TABLE logs ADD COLUMN isLast BOOLEAN DEFAULT 0`);
             console.log('✅ Added isLast column to logs table');
         } catch (err) {
-            console.log('isLast column already exists or error:', err.message);
+            // العمود موجود بالفعل - هذا ليس خطأ
+            if (!err.message.includes('duplicate column name')) {
+                console.log('isLast column already exists or error:', err.message);
+            }
         }
 
         // جدول بيانات الـ Workers
@@ -76,7 +106,7 @@ async function initDatabase() {
             await db.run('INSERT INTO rates (vcash, crypto) VALUES (11, 0.185)');
         }
 
-        console.log('✅ Database initialized successfully');
+        console.log('✅ Database initialized successfully at:', dbPath);
         return true;
     } catch (error) {
         console.error('Database error:', error);
