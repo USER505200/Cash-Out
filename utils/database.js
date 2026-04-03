@@ -31,7 +31,6 @@ async function initDatabase() {
             console.log(`✅ Directory ${dbDir} is writable`);
         } catch (err) {
             console.error(`❌ Directory ${dbDir} is NOT writable:`, err);
-            // محاولة إنشاء المجلد مرة أخرى بصلاحيات مختلفة
             fs.mkdirSync(dbDir, { recursive: true, mode: 0o755 });
         }
         
@@ -40,6 +39,9 @@ async function initDatabase() {
             driver: sqlite3.Database
         });
 
+
+
+        
         // جدول الأسعار
         await db.exec(`
             CREATE TABLE IF NOT EXISTS rates (
@@ -72,7 +74,6 @@ async function initDatabase() {
             await db.exec(`ALTER TABLE logs ADD COLUMN isLast BOOLEAN DEFAULT 0`);
             console.log('✅ Added isLast column to logs table');
         } catch (err) {
-            // العمود موجود بالفعل - هذا ليس خطأ
             if (!err.message.includes('duplicate column name')) {
                 console.log('isLast column already exists or error:', err.message);
             }
@@ -451,7 +452,6 @@ async function updateUserLimit(userId, amount) {
         const currentTotal = limit.totalAmount || 0;
         const newTotal = currentTotal + amount;
         
-        // إذا كان المجموع الجديد أكبر من 2000
         if (newTotal > 2000) {
             return { 
                 success: false, 
@@ -462,9 +462,7 @@ async function updateUserLimit(userId, amount) {
             };
         }
         
-        // إذا كان المجموع الجديد يساوي 2000 بالضبط (آخر عملية)
         if (newTotal === 2000) {
-            // حساب وقت انتهاء الـ Limit (28 ساعة بالضبط من الآن)
             const limitedUntil = new Date();
             limitedUntil.setTime(limitedUntil.getTime() + (28 * 60 * 60 * 1000));
             
@@ -489,7 +487,6 @@ async function updateUserLimit(userId, amount) {
             };
         }
         
-        // أقل من 2000 (عادي)
         await db.run(`
             UPDATE limits 
             SET totalAmount = ?, lastReset = datetime("now") 
@@ -552,7 +549,6 @@ async function activateLimitAfterApproval(userId) {
         const limit = await getUserLimit(userId);
         
         if (limit.totalAmount >= 2000 && !limit.isLimited) {
-            // 28 ساعة بالضبط من الآن
             const limitedUntil = new Date();
             limitedUntil.setTime(limitedUntil.getTime() + (28 * 60 * 60 * 1000));
             
@@ -582,10 +578,7 @@ async function getRemainingTime(userId) {
         
         if (now >= limitedUntil) return null;
         
-        // حساب الفرق بالمللي ثانية
         const diffMs = limitedUntil - now;
-        
-        // تحويل إلى ساعات ودقائق وثواني
         const totalSeconds = Math.floor(diffMs / 1000);
         const hours = Math.floor(totalSeconds / 3600);
         const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -629,7 +622,6 @@ async function isLimitExpired(userId) {
     }
 }
 
-// ==================== الصادرات ====================
 module.exports = {
     initDatabase,
     getRate,
